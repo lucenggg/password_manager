@@ -1,0 +1,8 @@
+username password123456
+	https://www.wherever.org/login website name
+		website_login website_password
+		alt_login alt_password
+username2 pass2
+	https://www.wherever.org/login website name
+		website_login website_password
+		alt_login alt_password
