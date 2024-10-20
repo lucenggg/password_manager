@@ -53,5 +53,4 @@ dkms.conf
 
 # Program-specific files
 password_manager
-data_text.txt
-data.bin
+data*
