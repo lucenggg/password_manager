@@ -102,6 +102,7 @@ int main(int argc, char** argv)
 	return 0;
 }
 
+// function definitions
 int extract_profile_data(char to[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH]) 
 {
 	int profile_tally = 0;
