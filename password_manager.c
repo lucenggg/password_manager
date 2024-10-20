@@ -4,24 +4,26 @@
 #include <string.h>
 
 // preprocessor constants
-#define DATA_PATH "./data.bin"
+#define DATA_PATH "./data/data.txt"
+
 #ifdef _WIN32 // "_WIN32" is implicitly defined in most Windows compilers
 #undef DATA_PATH
-#define DATA_PATH "%appdata%\\roaming\\password_manager\\data.bin"
+#define DATA_PATH "%appdata%\\roaming\\password_manager\\data\\data.txt" /* The %s don't need to be escaped because it's not going to be printed */
 #endif
+
 #ifdef __unix__ // "__unix__" is implicitly defined in most Unix/Linux compilers
 #undef DATA_PATH
-#define DATA_PATH "~/.password_manager/data.bin"
+#define DATA_PATH "~/.password_manager/data.txt"
 #endif
+
 #ifdef PORTABLE
 #undef DATA_PATH
-#define DATA_PATH "data.bin"
+#define DATA_PATH "./data/data.txt"
 #endif
 
 #ifdef DEBUG
 #undef DATA_PATH
-#define DATA_PATH "data.bin"
-#define DEBUG_DATA_PATH "data_text.txt"
+#define DATA_PATH "./data/data.txt"
 #endif
 
 #define MAX_PROFILE_NAME_LENGTH 256
@@ -32,17 +34,12 @@
 
 
 // struct definitions
-struct flex_int_array
-{
-	int* data;
-	int size;
-};
 
 
 // function prototypes
-int* extract_profile_offsets();
+void extract_profile_offsets(int to[MAX_PROFILES]);
 int list_profiles();
-char** extract_profile_names();
+void extract_profile_names(char to[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH]);
 void create_profile();
 int list_websites(int of_user);
 int list_accounts(int of_user, int for_site);
@@ -59,9 +56,6 @@ int profiles_size;
 int main(int argc, char** argv)
 {
 	data_ptr = fopen(DATA_PATH, "a+b");
-	#ifdef DEBUG
-	data_txt_ptr = fopen(DEBUG_DATA_PATH, "a+");
-	#endif
 
 	printf("=========================================\n");
 	printf("|           [password manager]          |\n");
@@ -81,25 +75,22 @@ int main(int argc, char** argv)
 	// }
 
 	sel = list_profiles();
-	if (sel == 0)
+	while (sel == 0)
 	{
 		create_profile();
+		sel = list_profiles();
 	}
 	
 	fclose(data_ptr);
-	#ifdef DEBUG
-	fclose(data_txt_ptr);
-	#endif
 	return 0;
 }
 
 // function definitions
-int* extract_profile_offsets()
+void extract_profile_offsets(int to[MAX_PROFILES])
 {
-	int out[MAX_PROFILES];
 	int profile_tally = 0;
 	rewind(data_ptr);
-	for (int i = 0; i < 0; ++i)
+	for (int i = 0; i < MAX_PROFILES; ++i)
 	{
 		char* line;
 		fscanf(data_ptr, "%s", line);
@@ -108,21 +99,21 @@ int* extract_profile_offsets()
 			++profile_tally;
 		}
 	}
-	return out;
+	return;
 }
 
-char** extract_profile_names() 
+void extract_profile_names(char to[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH]) 
 {
-	char out[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH];
-
-	return out;
+	return;
 }
 
 int list_profiles() // lists out the various profiles and prompts the user to select one, returning the result.
 {
 	int sel;
 	printf("Select a profile by typing the number to the left of that profile:\n");
-	printf("    0: [create new profile]\n> ");
+
+	printf("    0: [create new profile]\n");
+	printf("   -1: [quit]\n> ");
 	scanf("%d", &sel);
 	return sel;
 }
@@ -136,6 +127,8 @@ void create_profile()
 	char profile_pass[MAX_PASSPHRASE_LENGTH];
 	scanf("%s", profile_pass);
 	fseek(data_ptr, 0, SEEK_END);
+	char profile_id[MAX_PROFILE_NAME_LENGTH + MAX_PASSPHRASE_LENGTH + 3];
+	fprintf(data_ptr, "%s %s\n", profile_name, profile_pass);
 }
 
 int list_websites(int of_user)
