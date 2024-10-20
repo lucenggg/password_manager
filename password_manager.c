@@ -4,6 +4,7 @@
 #include <string.h> // standard string handling library
 #include <sys/stat.h> 
 #include <errno.h>
+#include <termios.h>
 
 // constant define directives
 #define DATA_PATH "./data"
@@ -38,12 +39,19 @@ int list_profiles();
 int extract_profile_data(char to[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH]);
 void create_profile();
 void select_profile(int profile);
+
 int list_websites(int of_user);
+void add_site();
+void select_site(int site);
+
 int list_accounts(int of_user, int for_site);
+void hide_echo();
+void unhide_echo();
 
 // global variables
 FILE* data_ptr;
 int profiles_size;
+struct termios term;
 // int profiles_offsets[MAX_PROFILES];
 
 // compile the program with the "gcc -o password_manager password_manager.c -D DEBUG" to enable debug mode 
@@ -68,6 +76,8 @@ int main(int argc, char** argv)
 
 	data_ptr = fopen(DATA_PATH, "a+");
 
+	tcgetattr(fileno(stdin), &term);
+
 	printf("=========================================\n");
 	printf("|                                       |\n");
 	printf("|           [password manager]          |\n");
@@ -88,14 +98,19 @@ int main(int argc, char** argv)
 	// }
 
 	sel = list_profiles();
-	while (sel == 0)
+	while (sel != -1)
 	{
-		create_profile();
+		switch (sel)
+		{
+		case 0:
+			create_profile();
+			break;
+		
+		default:
+			select_profile(sel - 1);
+			break;
+		}
 		sel = list_profiles();
-	}
-	if (sel > 0)
-	{
-		select_profile(sel);
 	}
 	
 	fclose(data_ptr);
@@ -142,12 +157,67 @@ int list_profiles() // lists out the various profiles and prompts the user to se
 
 void create_profile()
 {
-	printf("Profile name (max %d characters):\n> ", MAX_PROFILE_NAME_LENGTH - 1);
 	char profile_name[MAX_PROFILE_NAME_LENGTH];
+	// printf("[Type \"c\" at any point to cancel.]\n");
+	printf("\nProfile name (or \"c\" to cancel) (max %d characters):\n> ", MAX_PROFILE_NAME_LENGTH - 1);
 	scanf("%s", profile_name);
-	printf("Profile passphrase (max %d characters) (Make sure it's secure -- there's a reason it's called a passPHRASE here!):\n> ", MAX_PASSPHRASE_LENGTH - 1);
+
+	if (strcmp(profile_name, "c") == 0)
+	{
+		return;
+	}
+
+	hide_echo();
+
 	char profile_pass[MAX_PASSPHRASE_LENGTH];
+	printf("Profile passphrase (or \"c\" to cancel) (max %d characters) \n", MAX_PASSPHRASE_LENGTH - 1);
+	printf("(Make sure it's secure -- there's a reason it's called a passPHRASE here!):\n> ");
 	scanf("%s", profile_pass);
+
+	if (strcmp(profile_pass, "c") == 0)
+	{
+		unhide_echo();
+		return;
+	}
+
+	char profile_cpass[MAX_PASSPHRASE_LENGTH];
+	printf("\nConfirm passphrase (or \"c\" to cancel):\n> ");
+	scanf("%s", profile_cpass);
+
+	if (strcmp(profile_cpass, "c") == 0)
+	{
+		unhide_echo();
+		return;
+	}
+
+	while (strcmp(profile_pass, profile_cpass) != 0)
+	{
+		#ifdef DEBUG
+		printf("\n[DEBUG] Pass: %s, CPass: %s, strcmp Verdict: %d", profile_pass, profile_cpass, strcmp(profile_pass, profile_cpass));
+		#endif
+
+		printf("\nPASSPHRASES DO NOT MATCH\n");
+		printf("Profile passphrase (or \"c\" to cancel) (max %d characters):\n> ", MAX_PASSPHRASE_LENGTH - 1);
+		scanf("%s", profile_pass);
+
+		if (strcmp(profile_pass, "c") == 0)
+		{
+			unhide_echo();
+			return;
+		}
+
+		printf("\nConfirm passphrase (or \"c\" to cancel):\n> ");
+		scanf("%s", profile_cpass);
+
+		if (strcmp(profile_cpass, "c") == 0)
+		{
+			unhide_echo();
+			return;
+		}
+	}
+
+	unhide_echo();
+
 	fseek(data_ptr, 0, SEEK_END);
 	// char profile_id[MAX_PROFILE_NAME_LENGTH + MAX_PASSPHRASE_LENGTH + 3];
 	fprintf(data_ptr, "%s %s\n", profile_name, profile_pass);
@@ -159,15 +229,82 @@ void create_profile()
 
 void select_profile(int profile)
 {
-	// int sel;
+	hide_echo();
 
-	// sel = list_websites(profile);
+	char pnames[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH];
+	extract_profile_data(pnames);
+
+	// get profile name
+	char profile_name[MAX_PROFILE_NAME_LENGTH];
+	strcpy(profile_name, strtok(pnames[profile], " "));
+	// get correct password
+	char profile_cpass[MAX_PASSPHRASE_LENGTH];
+	strcpy(profile_cpass, strtok(NULL, "\n"));
+
+	char profile_pass[MAX_PASSPHRASE_LENGTH];
+	printf("Passphrase for %s (or \"c\" to cancel):\n> ", profile_name);
+	scanf("%s", profile_pass);
+
+	if (strcmp(profile_pass, "c") == 0)
+	{
+		unhide_echo();
+		return;
+	}
+
+	while (strcmp(profile_pass, profile_cpass) != 0)
+	{
+		#ifdef DEBUG
+		printf("\n[DEBUG] Pass: %s, CPass: %s, strcmp Verdict: %d", profile_pass, profile_cpass, strcmp(profile_pass, profile_cpass));
+		#endif
+
+		printf("\nPASSPHRASES DO NOT MATCH\n");
+		printf("Profile passphrase (or \"c\" to cancel) (max %d characters):\n> ", MAX_PASSPHRASE_LENGTH - 1);
+		scanf("%s", profile_pass);
+
+		if (strcmp(profile_pass, "c") == 0)
+		{
+			unhide_echo();
+			return;
+		}
+	}
+
+	unhide_echo();
+	
+	int sel = list_websites(profile);
+	while (sel != -1)
+	{
+		switch (sel)
+		{
+		case 0:
+			add_site();
+			break;
+		
+		default:
+			select_site(sel - 1);
+			break;
+		}
+		int sel = list_websites(profile);
+	}
 }
 
 int list_websites(int of_user)
 {
-	int sel = 0;
+	int sel;
+	printf("Select a profile by typing the number to the left of that profile:\n");
+	
+	// char snames[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH];
+	// int scount = extract_profile_data(snames);
 
+	// for (int i = 0; i < scount; ++i)
+	// {
+	// 	char name[MAX_PROFILE_NAME_LENGTH]; 
+	// 	strcpy(name, strtok(snames[i], " "));
+	// 	printf("    %d: %s\n", i + 1, name);
+	// }
+
+	printf("    0: [add new site]\n");
+	printf("   -1: [sign out]\n> ");
+	scanf("%d", &sel);
 	return sel;
 }
 
@@ -176,4 +313,16 @@ int list_accounts(int of_user, int for_site)
 	int sel = 0;
 
 	return sel;
+}
+
+void hide_echo()
+{
+	term.c_lflag &= ~ECHO;
+	tcsetattr(fileno(stdin), 0, &term);
+}
+
+void unhide_echo()
+{
+	term.c_lflag |= ECHO;
+	tcsetattr(fileno(stdin), 0, &term);
 }
