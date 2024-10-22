@@ -30,6 +30,8 @@
 #define MAX_PASSPHRASE_LENGTH 256
 #define MAX_PROFILES 256
 #define MAX_SITES_PER_PROFILE 1024
+#define MAX_SITE_NAME_LENGTH 256
+#define MAX_SITE_URL_LENGTH 2048 // ~2000 seems to be something of an unofficial soft limit for url lengths
 #define MAX_ACCOUNTS_PER_SITE 256
 
 // struct definitions
@@ -40,9 +42,10 @@ int extract_profile_data(char to[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH]);
 void create_profile();
 void select_profile(int profile);
 
-int list_websites(int of_user);
-void add_site();
-void select_site(int site);
+int list_sites(int of_user);
+int extract_site_data(int of_user, char to[MAX_SITES_PER_PROFILE][MAX_SITE_URL_LENGTH]);
+void add_site(int to_user);
+void select_site(int of_user, int site);
 
 int list_accounts(int of_user, int for_site);
 void hide_echo();
@@ -118,22 +121,6 @@ int main(int argc, char** argv)
 }
 
 // function definitions
-int extract_profile_data(char to[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH]) 
-{
-	int profile_tally = 0;
-	char line[MAX_PROFILE_NAME_LENGTH + MAX_PASSPHRASE_LENGTH + 1];
-	rewind(data_ptr);
-	while (fgets(line, sizeof(line), data_ptr))
-	{
-		if (line[0] != '\t')
-		{
-			strcpy(to[profile_tally], line);
-			++profile_tally;
-		}
-	}
-	return profile_tally;
-}
-
 int list_profiles() // lists out the various profiles and prompts the user to select one, returning the result.
 {
 	int sel;
@@ -153,6 +140,22 @@ int list_profiles() // lists out the various profiles and prompts the user to se
 	printf("   -1: [quit]\n> ");
 	scanf("%d", &sel);
 	return sel;
+}
+
+int extract_profile_data(char to[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH]) 
+{
+	int profile_tally = 0;
+	char line[MAX_PROFILE_NAME_LENGTH + MAX_PASSPHRASE_LENGTH + 1];
+	rewind(data_ptr);
+	while (fgets(line, sizeof(line), data_ptr))
+	{
+		if (line[0] != '\t')
+		{
+			strcpy(to[profile_tally], line);
+			++profile_tally;
+		}
+	}
+	return profile_tally;
 }
 
 void create_profile()
@@ -270,24 +273,24 @@ void select_profile(int profile)
 
 	unhide_echo();
 	
-	int sel = list_websites(profile);
+	int sel = list_sites(profile);
 	while (sel != -1)
 	{
 		switch (sel)
 		{
 		case 0:
-			add_site();
+			add_site(profile);
 			break;
 		
 		default:
-			select_site(sel - 1);
+			select_site(profile, sel - 1);
 			break;
 		}
-		int sel = list_websites(profile);
+		sel = list_sites(profile);
 	}
 }
 
-int list_websites(int of_user)
+int list_sites(int of_user)
 {
 	int sel;
 	printf("Select a profile by typing the number to the left of that profile:\n");
@@ -303,9 +306,54 @@ int list_websites(int of_user)
 	// }
 
 	printf("    0: [add new site]\n");
+	printf("   -2: [rename profile]");
 	printf("   -1: [sign out]\n> ");
 	scanf("%d", &sel);
 	return sel;
+}
+
+int extract_site_data(int of_user, char to[MAX_SITES_PER_PROFILE][MAX_SITE_URL_LENGTH])
+{
+	int site_tally;
+	char line[MAX_SITE_URL_LENGTH + MAX_SITE_NAME_LENGTH + 1];
+	rewind(data_ptr);
+	while (fgets(line, sizeof(line), data_ptr))
+	{
+		if (line[0] != '\t')
+		{
+			strcpy(to[site_tally], line);
+			++site_tally;
+		}
+	}
+	return site_tally;
+}
+
+void add_site(int to_user)
+{
+	char profile_name[MAX_PROFILE_NAME_LENGTH];
+	// printf("[Type \"c\" at any point to cancel.]\n");
+	printf("\nWebsite name (or \"c\" to cancel) (max %d characters):\n> ", MAX_PROFILE_NAME_LENGTH - 1);
+	scanf("%s", profile_name);
+
+	if (strcmp(profile_name, "c") == 0)
+	{
+		return;
+	}
+
+	printf("\nWebsite URL (or \"c\" to cancel) (max %d characters):\n> ", MAX_PROFILE_NAME_LENGTH - 1);
+	scanf("%s", profile_name);
+
+	if (strcmp(profile_name, "c") == 0)
+	{
+		return;
+	}
+
+
+}
+
+void select_site(int of_user, int site)
+{
+	
 }
 
 int list_accounts(int of_user, int for_site)
