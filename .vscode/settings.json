@@ -5,6 +5,7 @@
 		"errno.h": "c",
 		"stdlib.h": "c",
 		"cstdlib": "c",
-		"termios.h": "c"
+		"termios.h": "c",
+		"limits": "c"
 	}
 }

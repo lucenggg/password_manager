@@ -33,6 +33,10 @@
 #define MAX_SITE_NAME_LENGTH 256
 #define MAX_SITE_URL_LENGTH 2048 // ~2000 seems to be something of an unofficial soft limit for url lengths
 #define MAX_ACCOUNTS_PER_SITE 256
+#define MAX_ACCOUNT_USERNAME_LENGTH 256
+#define MAX_ACCOUNT_PASSWORD_LENGTH 256
+#define MAX_LINE_LENGTH 4096
+#define MAX_FILE_LINES (MAX_PROFILES + (MAX_PROFILES * MAX_SITES_PER_PROFILE) + (MAX_PROFILES * MAX_SITES_PER_PROFILE * MAX_ACCOUNTS_PER_SITE))
 
 // struct definitions
 
@@ -48,12 +52,14 @@ void add_site(int to_user);
 void select_site(int of_user, int site);
 
 int list_accounts(int of_user, int for_site);
+
+void insert_line(char line[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH]);
 void hide_echo();
 void unhide_echo();
 
 // global variables
 FILE* data_ptr;
-int profiles_size;
+int profile_count;
 struct termios term;
 // int profiles_offsets[MAX_PROFILES];
 
@@ -235,7 +241,7 @@ void select_profile(int profile)
 	hide_echo();
 
 	char pnames[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH];
-	extract_profile_data(pnames);
+	profile_count = extract_profile_data(pnames);
 
 	// get profile name
 	char profile_name[MAX_PROFILE_NAME_LENGTH];
@@ -330,25 +336,36 @@ int extract_site_data(int of_user, char to[MAX_SITES_PER_PROFILE][MAX_SITE_URL_L
 
 void add_site(int to_user)
 {
-	char profile_name[MAX_PROFILE_NAME_LENGTH];
+	char site_name[MAX_SITE_NAME_LENGTH];
 	// printf("[Type \"c\" at any point to cancel.]\n");
 	printf("\nWebsite name (or \"c\" to cancel) (max %d characters):\n> ", MAX_PROFILE_NAME_LENGTH - 1);
-	scanf("%s", profile_name);
+	scanf("%s", site_name);
 
-	if (strcmp(profile_name, "c") == 0)
+	if (strcmp(site_name, "c") == 0)
 	{
 		return;
 	}
 
+	char site_url[MAX_SITE_URL_LENGTH];
 	printf("\nWebsite URL (or \"c\" to cancel) (max %d characters):\n> ", MAX_PROFILE_NAME_LENGTH - 1);
-	scanf("%s", profile_name);
+	scanf("%s", site_url);
 
-	if (strcmp(profile_name, "c") == 0)
+	if (strcmp(site_url, "c") == 0)
 	{
 		return;
 	}
 
-
+	char pnames[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH];
+	int pcount = extract_profile_data(pnames);
+	if (to_user == pcount - 1)
+	{
+		fprintf(data_ptr, "\t%s %s", site_url, site_name);
+	}
+	else
+	{
+		char before[MAX_FILE_LINES][MAX_LINE_LENGTH];
+		char after[MAX_FILE_LINES][MAX_LINE_LENGTH];
+	}
 }
 
 void select_site(int of_user, int site)
@@ -361,6 +378,11 @@ int list_accounts(int of_user, int for_site)
 	int sel = 0;
 
 	return sel;
+}
+
+void insert_line(char line[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH])
+{
+	
 }
 
 void hide_echo()
