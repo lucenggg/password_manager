@@ -53,4 +53,5 @@ dkms.conf
 
 # Program-specific files
 password_manager
+pm
 data*
