@@ -7,9 +7,10 @@
 #include <termios.h>
 
 // constant define directives
-#define DATA_PATH "./data"
-#define PROFILE_NAMES_PATH "./data/profiles"
 
+// filepaths
+#define DATA_PATH "./data"
+// #define PROFILE_NAMES_PATH "./data/profiles"
 // #if !(defined(PORTABLE) || defined(DEBUG))
 // 	#ifdef _WIN32 // "_WIN32" is implicitly defined in most Windows compilers
 // 		#undef DATA_PATH
@@ -17,7 +18,6 @@
 // 		#define DATA_PATH "%appdata%\\roaming\\password_manager\\data" /* The % doesn't need to be escaped because it's not going to be printed */
 // 		#define PROFILE_NAMES_PATH "%appdata%\\roaming\\password_manager\\data\\profiles"
 // 	#endif
-
 // 	#ifdef __unix__ // "__unix__" is implicitly defined in most Unix/Linux compilers
 // 		#undef DATA_PATH
 // 		#undef PROFILE_NAMES_PATH
@@ -26,6 +26,7 @@
 // 	#endif
 // #endif
 
+// array sizes
 #define MAX_PROFILE_NAME_LENGTH 256
 #define MAX_PASSPHRASE_LENGTH 256
 #define MAX_PROFILES 256
@@ -41,19 +42,25 @@
 // struct definitions
 
 // function prototypes
+// profiles
 int list_profiles();
 int extract_profile_data(char to[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH]);
 void create_profile();
 void select_profile(int profile);
 
+// sites
 int list_sites(int of_user);
-int extract_site_data(int of_user, char to[MAX_SITES_PER_PROFILE][MAX_SITE_URL_LENGTH]);
+int extract_site_data(int of_user, char to[MAX_SITES_PER_PROFILE][MAX_LINE_LENGTH]);
 void add_site(int to_user);
 void select_site(int of_user, int site);
 
+// accounts
 int list_accounts(int of_user, int for_site);
 
-void insert_line(char line[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH]);
+// utility functions
+void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH]);
+void encrypt(char string[MAX_LINE_LENGTH]);
+void decrypt(char string[MAX_LINE_LENGTH]);
 void hide_echo();
 void unhide_echo();
 
@@ -288,6 +295,13 @@ void select_profile(int profile)
 			add_site(profile);
 			break;
 		
+		case -2:
+			// TODO implement renaming profiles
+			break;
+
+		case -1:
+			return;
+
 		default:
 			select_site(profile, sel - 1);
 			break;
@@ -301,15 +315,15 @@ int list_sites(int of_user)
 	int sel;
 	printf("Select a profile by typing the number to the left of that profile:\n");
 	
-	// char snames[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH];
-	// int scount = extract_profile_data(snames);
+	char snames[MAX_SITES_PER_PROFILE][MAX_LINE_LENGTH];
+	int scount = extract_site_data(of_user, snames);
 
-	// for (int i = 0; i < scount; ++i)
-	// {
-	// 	char name[MAX_PROFILE_NAME_LENGTH]; 
-	// 	strcpy(name, strtok(snames[i], " "));
-	// 	printf("    %d: %s\n", i + 1, name);
-	// }
+	for (int i = 0; i < scount; ++i)
+	{
+		char name[MAX_SITE_NAME_LENGTH]; 
+		strcpy(name, strtok(snames[i], " "));
+		printf("    %d: %s\n", i + 1, name);
+	}
 
 	printf("    0: [add new site]\n");
 	printf("   -2: [rename profile]");
@@ -318,14 +332,21 @@ int list_sites(int of_user)
 	return sel;
 }
 
-int extract_site_data(int of_user, char to[MAX_SITES_PER_PROFILE][MAX_SITE_URL_LENGTH])
+int extract_site_data(int of_user, char to[MAX_SITES_PER_PROFILE][MAX_LINE_LENGTH])
 {
-	int site_tally;
-	char line[MAX_SITE_URL_LENGTH + MAX_SITE_NAME_LENGTH + 1];
+	int profile_tally = 0, site_tally = 0;
+	char line[MAX_LINE_LENGTH];
 	rewind(data_ptr);
-	while (fgets(line, sizeof(line), data_ptr))
+	while (fgets(line, sizeof(line), data_ptr) && profile_tally < of_user)
 	{
 		if (line[0] != '\t')
+		{
+			++profile_tally;
+		}
+	}
+	while (fgets(line, sizeof(line), data_ptr) && line[0] == '\t')
+	{
+		if (line[1] != '\t')
 		{
 			strcpy(to[site_tally], line);
 			++site_tally;
@@ -359,12 +380,18 @@ void add_site(int to_user)
 	int pcount = extract_profile_data(pnames);
 	if (to_user == pcount - 1)
 	{
-		fprintf(data_ptr, "\t%s %s", site_url, site_name);
+		fprintf(data_ptr, "\t%s %s\n", site_url, site_name);
 	}
 	else
 	{
-		char before[MAX_FILE_LINES][MAX_LINE_LENGTH];
-		char after[MAX_FILE_LINES][MAX_LINE_LENGTH];
+		// char line[MAX_LINE_LENGTH] = "\t";
+		// strcat(line, site_url);
+		// strcat(line, " ");
+		// strcat(line, site_name);
+		// strcat(line, "\n");
+		char line[MAX_LINE_LENGTH];
+		sprintf(line, "\t%s %s\n", site_url, site_name);
+		insert_line_before(line, pnames[pcount + 1]);
 	}
 }
 
@@ -380,17 +407,63 @@ int list_accounts(int of_user, int for_site)
 	return sel;
 }
 
-void insert_line(char line[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH])
+void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH])
 {
-	
+	char new_file[MAX_FILE_LINES][MAX_LINE_LENGTH];
+	rewind(data_ptr);
+	int lines_tally = 0;
+	char current_line[MAX_PROFILE_NAME_LENGTH + MAX_PASSPHRASE_LENGTH + 1];
+	rewind(data_ptr);
+	// insert lines until "before" is found
+	while (fgets(current_line, sizeof(current_line), data_ptr) && strcmp(current_line, before))
+	{
+		strcpy(new_file[lines_tally], current_line);
+		++lines_tally;
+	}
+	// insert new line
+	strcpy(new_file[lines_tally], new_line);
+	++lines_tally;
+	// don't forget the line we wanted to insert before
+	strcpy(new_file[lines_tally], current_line);
+	// insert the rest of the file
+	while (fgets(current_line, sizeof(current_line), data_ptr))
+	{
+		strcpy(new_file[lines_tally], current_line);
+		++lines_tally;
+	}
+	// put string array into file
+	rewind(data_ptr);
+	for (int i = 0; i < lines_tally; ++i)
+	{
+		fprintf(data_ptr, "%s", new_file[i]);
+	}
+	fclose(data_ptr);
+	data_ptr = fopen(DATA_PATH, "a+");
 }
 
+// TODO implement encryption/decryption
+void encrypt(char string[MAX_LINE_LENGTH])
+{
+	#ifdef DEBUG
+	printf("WARNING: ENCRYPTION HAS NOT BEEN IMPLEMENTED YET");
+	#endif
+}
+
+void decrypt(char string[MAX_LINE_LENGTH])
+{
+	#ifdef DEBUG
+	printf("WARNING: DECRYPTION HAS NOT BEEN IMPLEMENTED YET");
+	#endif
+}
+
+// Use this function to hide the user's input while they're typing a password.
 void hide_echo()
 {
 	term.c_lflag &= ~ECHO;
 	tcsetattr(fileno(stdin), 0, &term);
 }
 
+// Use this function to re-enable displaying the user's input.
 void unhide_echo()
 {
 	term.c_lflag |= ECHO;
