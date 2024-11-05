@@ -179,6 +179,7 @@ void create_profile()
 	printf("\nProfile name (or \"c\" to cancel) (max %d characters):\n> ", MAX_PROFILE_NAME_LENGTH - 1);
 	scanf("%s", profile_name);
 
+	// TODO prevent duplicate profile names
 	if (strcmp(profile_name, "c") == 0)
 	{
 		return;
@@ -321,9 +322,12 @@ int list_sites(int of_user)
 
 	for (int i = 0; i < scount; ++i)
 	{
-		char name[MAX_SITE_NAME_LENGTH]; 
-		strcpy(name, strtok(snames[i], " "));
-		printf("    %d: %s\n", i + 1, name);
+		char name[MAX_SITE_NAME_LENGTH], url[MAX_SITE_URL_LENGTH];
+		// url is stored before name in file so i can use spaces as a delimiter 
+		// while also allowing spaces in the site name
+		strcpy(url, strtok(snames[i] + 1, " "));
+		strcpy(name, strtok(NULL, "\n"));
+		printf("    %d: %s (%s)\n", i + 1, name, url);
 	}
 
 	printf("    0: [add new site]\n");
@@ -363,6 +367,7 @@ void add_site(int to_user)
 	printf("\nWebsite name (or \"c\" to cancel) (max %d characters):\n> ", MAX_PROFILE_NAME_LENGTH - 1);
 	scanf("%s", site_name);
 
+	// TODO prevent duplicate site names (per profile)
 	if (strcmp(site_name, "c") == 0)
 	{
 		return;
@@ -465,14 +470,14 @@ void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LEN
 void encrypt(char string[MAX_LINE_LENGTH])
 {
 	#ifdef DEBUG
-	printf("WARNING: ENCRYPTION HAS NOT BEEN IMPLEMENTED YET");
+	printf("TODO: ENCRYPTION HAS NOT BEEN IMPLEMENTED YET");
 	#endif
 }
 
 void decrypt(char string[MAX_LINE_LENGTH])
 {
 	#ifdef DEBUG
-	printf("WARNING: DECRYPTION HAS NOT BEEN IMPLEMENTED YET");
+	printf("TODO: DECRYPTION HAS NOT BEEN IMPLEMENTED YET");
 	#endif
 }
 
