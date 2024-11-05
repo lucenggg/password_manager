@@ -10,6 +10,7 @@
 
 // filepaths
 #define DATA_PATH "./data"
+#define TEMP_DATA_PATH "./temp"
 // #define PROFILE_NAMES_PATH "./data/profiles"
 // #if !(defined(PORTABLE) || defined(DEBUG))
 // 	#ifdef _WIN32 // "_WIN32" is implicitly defined in most Windows compilers
@@ -326,7 +327,7 @@ int list_sites(int of_user)
 	}
 
 	printf("    0: [add new site]\n");
-	printf("   -2: [rename profile]");
+	printf("   -2: [rename profile]\n");
 	printf("   -1: [sign out]\n> ");
 	scanf("%d", &sel);
 	return sel;
@@ -378,6 +379,12 @@ void add_site(int to_user)
 
 	char pnames[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH];
 	int pcount = extract_profile_data(pnames);
+	#ifdef DEBUG
+	for (int i = 0; i < pcount; ++i)
+	{
+		printf("profile #%d: %s", i, pnames[i]);
+	}
+	#endif
 	if (to_user == pcount - 1)
 	{
 		fprintf(data_ptr, "\t%s %s\n", site_url, site_name);
@@ -389,9 +396,12 @@ void add_site(int to_user)
 		// strcat(line, " ");
 		// strcat(line, site_name);
 		// strcat(line, "\n");
-		char line[MAX_LINE_LENGTH];
+		char line[MAX_LINE_LENGTH] = "";
 		sprintf(line, "\t%s %s\n", site_url, site_name);
-		insert_line_before(line, pnames[pcount + 1]);
+		#ifdef DEBUG
+		printf("printing line before %s\n", pnames[pcount - 1]);
+		#endif
+		insert_line_before(line, pnames[pcount - 1]);
 	}
 }
 
@@ -409,35 +419,45 @@ int list_accounts(int of_user, int for_site)
 
 void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH])
 {
-	char new_file[MAX_FILE_LINES][MAX_LINE_LENGTH];
-	rewind(data_ptr);
+	// char new_file[MAX_FILE_LINES][MAX_LINE_LENGTH];
+	FILE* temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
 	int lines_tally = 0;
-	char current_line[MAX_PROFILE_NAME_LENGTH + MAX_PASSPHRASE_LENGTH + 1];
+	char current_line[MAX_LINE_LENGTH];
 	rewind(data_ptr);
 	// insert lines until "before" is found
 	while (fgets(current_line, sizeof(current_line), data_ptr) && strcmp(current_line, before))
 	{
-		strcpy(new_file[lines_tally], current_line);
+		// strcpy(new_file[lines_tally], current_line);
+		fprintf(temp_data_ptr, "%s", current_line);
+		#ifdef DEBUG
+		printf("copying line %d: \"%s\"\n", lines_tally, current_line);
+		#endif
 		++lines_tally;
 	}
 	// insert new line
-	strcpy(new_file[lines_tally], new_line);
+	// strcpy(new_file[lines_tally], new_line);
+	fprintf(temp_data_ptr, "%s", new_line);
 	++lines_tally;
-	// don't forget the line we wanted to insert before
-	strcpy(new_file[lines_tally], current_line);
+	// don't forget the line we wanted to insert our new line before
+	// strcpy(new_file[lines_tally], current_line);
+	fprintf(temp_data_ptr, "%s", current_line);
 	// insert the rest of the file
 	while (fgets(current_line, sizeof(current_line), data_ptr))
 	{
-		strcpy(new_file[lines_tally], current_line);
+		// strcpy(new_file[lines_tally], current_line);
+		fprintf(temp_data_ptr, "%s", current_line);
 		++lines_tally;
 	}
 	// put string array into file
-	rewind(data_ptr);
-	for (int i = 0; i < lines_tally; ++i)
-	{
-		fprintf(data_ptr, "%s", new_file[i]);
-	}
+	// rewind(data_ptr);
+	// for (int i = 0; i < lines_tally; ++i)
+	// {
+	// 	fprintf(data_ptr, "%s", new_file[i]);
+	// }
+	fclose(temp_data_ptr);
 	fclose(data_ptr);
+	// remove(DATA_PATH);
+	rename(TEMP_DATA_PATH, DATA_PATH);
 	data_ptr = fopen(DATA_PATH, "a+");
 }
 
