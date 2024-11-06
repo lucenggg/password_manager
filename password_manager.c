@@ -3,7 +3,7 @@
 #include <stdlib.h> // standard c library
 #include <string.h> // standard string handling library
 #include <sys/stat.h> 
-#include <errno.h> ///Hello
+#include <errno.h> 
 #include <termios.h>
 
 // constant define directives
