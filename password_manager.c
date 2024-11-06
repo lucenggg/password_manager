@@ -180,6 +180,7 @@ void create_profile()
 	scanf("%s", profile_name);
 
 	// TODO prevent duplicate profile names
+	// in progress
 	if (strcmp(profile_name, "c") == 0)
 	{
 		return;
