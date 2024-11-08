@@ -185,6 +185,16 @@ void create_profile()
 	{
 		return;
 	}
+	char profiles[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH];
+	int profiles_count = extract_profile_data(profiles);
+	for (int i = 0; i < profiles_count; ++i)
+	{
+		if (strcmp(profile_name, strtok(profiles[i], " ")) == 0)
+		{
+			printf("Profile already exists!\n\n");
+			return;
+		}
+	}
 
 	hide_echo();
 
