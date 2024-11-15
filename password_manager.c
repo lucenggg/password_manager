@@ -1,3 +1,7 @@
+// a promising-looking encryption library
+// https://github.com/jedisct1/libsodium?tab=readme-ov-file
+
+
 // header include directives
 #include <stdio.h> // standard input/output library
 #include <stdlib.h> // standard c library
@@ -5,6 +9,7 @@
 #include <sys/stat.h> 
 #include <errno.h> 
 #include <termios.h>
+#include <sodium.h>
 
 // constant define directives
 
@@ -436,7 +441,7 @@ void rename_profile(int of_user)
 	{
 		return;
 	}
-	
+
 	char pnames[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH];
 	int pcount = extract_profile_data(pnames);
 	for (int i = 0; i < pcount; ++i)
