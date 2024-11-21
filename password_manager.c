@@ -106,7 +106,7 @@ int main(int argc, char** argv)
 	// initilization stuff
 	data_ptr = fopen(DATA_PATH, "a+");
 	tcgetattr(fileno(stdin), &term);
-	if (sodium_init())
+	if (sodium_init() == -1)
 	{
 		printf("ERROR: libsodium could not be initialized\n");
 		return 1;
@@ -267,7 +267,7 @@ void create_profile()
 	fseek(data_ptr, 0, SEEK_END);
 	// char profile_id[MAX_PROFILE_NAME_LENGTH + MAX_PASSPHRASE_LENGTH + 3];
 	char hashed[crypto_pwhash_STRBYTES];
-	int err = crypto_pwhash_str(hashed, profile_pass, strlen(profile_pass), MAX_PASSPHRASE_OPS, MAX_PASSPHRASE_MEM);
+	int err = crypto_pwhash_str(hashed, profile_pass, strlen(profile_pass), crypto_pwhash_OPSLIMIT_MODERATE, crypto_pwhash_MEMLIMIT_MODERATE);
 	if (err)
 	{
 		printf("\nERROR: could not encrypt password\n");
@@ -307,7 +307,7 @@ void select_profile(int profile)
 		return;
 	}
 
-	while (crypto_pwhash_str_verify(profile_pass, profile_cpass, sizeof(profile_cpass) / sizeof(profile_cpass[0])) != 0)
+	while (crypto_pwhash_str_verify(profile_pass, profile_cpass, strlen(profile_cpass)) != 0)
 	{
 		// #ifdef DEBUG
 		// printf("\n[DEBUG] Pass: %s, CPass: %s, strcmp Verdict: %d", profile_pass, profile_cpass, strcmp(profile_pass, profile_cpass));
