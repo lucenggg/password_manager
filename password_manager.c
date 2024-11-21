@@ -45,6 +45,9 @@
 #define MAX_LINE_LENGTH 4096
 #define MAX_FILE_LINES (MAX_PROFILES + (MAX_PROFILES * MAX_SITES_PER_PROFILE) + (MAX_PROFILES * MAX_SITES_PER_PROFILE * MAX_ACCOUNTS_PER_SITE))
 
+#define MAX_PASSPHRASE_OPS 3
+#define MAX_PASSPHRASE_MEM 256
+
 // struct definitions
 
 // function prototypes
@@ -100,9 +103,14 @@ int main(int argc, char** argv)
 	// }
 	// #endif
 
+	// initilization stuff
 	data_ptr = fopen(DATA_PATH, "a+");
-
 	tcgetattr(fileno(stdin), &term);
+	if (sodium_init())
+	{
+		printf("ERROR: libsodium could not be initialized\n");
+		return 1;
+	}
 
 	printf("=========================================\n");
 	printf("|                                       |\n");
@@ -258,7 +266,17 @@ void create_profile()
 
 	fseek(data_ptr, 0, SEEK_END);
 	// char profile_id[MAX_PROFILE_NAME_LENGTH + MAX_PASSPHRASE_LENGTH + 3];
-	fprintf(data_ptr, "%s %s\n", profile_name, profile_pass);
+	char hashed[crypto_pwhash_STRBYTES];
+	int err = crypto_pwhash_str(hashed, profile_pass, strlen(profile_pass), MAX_PASSPHRASE_OPS, MAX_PASSPHRASE_MEM);
+	if (err)
+	{
+		printf("\nERROR: could not encrypt password\n");
+		#ifdef DEBUG
+		printf("passphrase: %s\nlength: %d\nhash: %s\n", profile_pass, (int) strlen(profile_pass), hashed);
+		#endif
+		return;
+	}
+	fprintf(data_ptr, "%s %s\n", profile_name, hashed);
 	
 	// hacky and probably inadvisable method of forcing changes to actually write to disq
 	fclose(data_ptr);
@@ -289,11 +307,11 @@ void select_profile(int profile)
 		return;
 	}
 
-	while (strcmp(profile_pass, profile_cpass) != 0)
+	while (crypto_pwhash_str_verify(profile_pass, profile_cpass, sizeof(profile_cpass) / sizeof(profile_cpass[0])) != 0)
 	{
-		#ifdef DEBUG
-		printf("\n[DEBUG] Pass: %s, CPass: %s, strcmp Verdict: %d", profile_pass, profile_cpass, strcmp(profile_pass, profile_cpass));
-		#endif
+		// #ifdef DEBUG
+		// printf("\n[DEBUG] Pass: %s, CPass: %s, strcmp Verdict: %d", profile_pass, profile_cpass, strcmp(profile_pass, profile_cpass));
+		// #endif
 
 		printf("\nPASSPHRASES DO NOT MATCH\n");
 		printf("Profile passphrase (or \"c\" to cancel) (max %d characters):\n> ", MAX_PASSPHRASE_LENGTH - 1);
@@ -348,7 +366,7 @@ int list_sites(int of_user)
 		// while also allowing spaces in the site name
 		strcpy(url, strtok(snames[i] + 1, " "));
 		strcpy(name, strtok(NULL, "\n"));
-		printf("    %d: %s (%s)\n", i + 1, name, url);
+		printf("%5d: %s (%s)\n", i + 1, name, url);
 	}
 
 	printf("    0: [add new site]\n");
