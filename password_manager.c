@@ -323,8 +323,11 @@ void select_profile(int profile)
 			break;
 		
 		case -2:
-			// TODO implement renaming profiles
 			rename_profile(profile);
+			break;
+
+		case -3:
+			change_passphrase(profile);
 			break;
 
 		case -1:
@@ -351,14 +354,15 @@ int list_sites(int of_user)
 		char name[MAX_SITE_NAME_LENGTH], url[MAX_SITE_URL_LENGTH];
 		// url is stored before name in file so i can use spaces as a delimiter 
 		// while also allowing spaces in the site name
-		strcpy(url, strtok(snames[i] + 1, " "));
+		strcpy(url, strtok(snames[i], " "));
 		strcpy(name, strtok(NULL, "\n"));
-		printf("%5d: %s (%s)\n", i, name, url);
+		printf("%5d: %s (%s)\n", i + 1, name, url);
 	}
 
 	printf("    0: [add new site]\n");
 	printf("   -2: [rename profile]\n");
-	printf("   -1: [sign out]\n> ");
+	printf("   -3: [change passphrase]\n");
+	printf("   -1: [return]\n> ");
 	scanf("%d", &sel);
 	return sel;
 }
