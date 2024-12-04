@@ -1,13 +1,12 @@
 // a promising-looking encryption library
 // https://github.com/jedisct1/libsodium?tab=readme-ov-file
 
-
 // header include directives
-#include <stdio.h> // standard input/output library
+#include <stdio.h>	// standard input/output library
 #include <stdlib.h> // standard c library
 #include <string.h> // standard string handling library
-#include <sys/stat.h> 
-#include <errno.h> 
+#include <sys/stat.h>
+#include <errno.h>
 #include <termios.h>
 #include <sodium.h>
 
@@ -87,15 +86,15 @@ void hide_echo();
 void unhide_echo();
 
 // global variables
-FILE* data_ptr;
+FILE *data_ptr;
 int profile_count;
 struct termios term;
 // int profiles_offsets[MAX_PROFILES];
 
-// compile the program with the "gcc -o password_manager password_manager.c -D DEBUG" to enable debug mode 
+// compile the program with the "gcc -o password_manager password_manager.c -D DEBUG" to enable debug mode
 // (use "#ifdef DEBUG" directives to print extra information/enable special inputs to assist in testing)
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
 	// set up directories
 	// struct stat st = {0};
@@ -125,13 +124,13 @@ int main(int argc, char** argv)
 	printf("|                                       |\n");
 	printf("|           [password manager]          |\n");
 	printf("| by Cole DeVlaeminck and Lucas England |\n");
-	#ifdef DEBUG
+#ifdef DEBUG
 	printf("|                                       |\n");
 	printf("|           DEBUG MODE ACTIVE           |\n");
-	#endif
+#endif
 	printf("|                                       |\n");
 	printf("=========================================\n\n");
-	
+
 	int sel = 0;
 
 	// struct flex_int_array profiles_offsets = extract_profile_offsets();
@@ -148,14 +147,14 @@ int main(int argc, char** argv)
 		case 0:
 			create_profile();
 			break;
-		
+
 		default:
 			select_profile(sel - 1);
 			break;
 		}
 		sel = list_profiles();
 	}
-	
+
 	fclose(data_ptr);
 	return 0;
 }
@@ -165,13 +164,13 @@ int list_profiles() // lists out the various profiles and prompts the user to se
 {
 	int sel;
 	printf("\nSelect a profile by typing the number to the left of that profile:\n");
-	
+
 	char pnames[MAX_PROFILES][MAX_LINE_LENGTH];
 	int pcount = extract_profile_data(pnames);
 
 	for (int i = 0; i < pcount; ++i)
 	{
-		char name[MAX_PROFILE_NAME_LENGTH]; 
+		char name[MAX_PROFILE_NAME_LENGTH];
 		strcpy(name, strtok(pnames[i], " "));
 		printf("%5d: %s\n", i + 1, name);
 	}
@@ -182,7 +181,7 @@ int list_profiles() // lists out the various profiles and prompts the user to se
 	return sel;
 }
 
-int extract_profile_data(char to[MAX_PROFILES][MAX_LINE_LENGTH]) 
+int extract_profile_data(char to[MAX_PROFILES][MAX_LINE_LENGTH])
 {
 	int profile_tally = 0;
 	char line[MAX_PROFILE_NAME_LENGTH + MAX_PASSPHRASE_LENGTH + 1];
@@ -247,9 +246,9 @@ void create_profile()
 
 	while (strcmp(profile_pass, profile_cpass) != 0)
 	{
-		#ifdef DEBUG
+#ifdef DEBUG
 		printf("\n[DEBUG] Pass: %s, CPass: %s, strcmp Verdict: %d", profile_pass, profile_cpass, strcmp(profile_pass, profile_cpass));
-		#endif
+#endif
 
 		printf("\nPASSPHRASES DO NOT MATCH\n");
 		printf("Profile passphrase (or \"c\" to cancel) (max %d characters):\n> ", MAX_PASSPHRASE_LENGTH - 1);
@@ -280,13 +279,13 @@ void create_profile()
 	if (err)
 	{
 		printf("\nERROR: could not encrypt password\n");
-		#ifdef DEBUG
-		printf("passphrase: %s\nlength: %d\nhash: %s\n", profile_pass, (int) strlen(profile_pass), hashed);
-		#endif
+#ifdef DEBUG
+		printf("passphrase: %s\nlength: %d\nhash: %s\n", profile_pass, (int)strlen(profile_pass), hashed);
+#endif
 		return;
 	}
 	fprintf(data_ptr, "%s %s\n", profile_name, hashed);
-	
+
 	// hacky and probably inadvisable method of forcing changes to actually write to disq
 	fclose(data_ptr);
 	data_ptr = fopen(DATA_PATH, "a+");
@@ -335,7 +334,7 @@ void select_profile(int profile)
 	}
 
 	unhide_echo();
-	
+
 	// sites loop
 	int sel = list_sites(profile);
 	while (sel != -1)
@@ -345,7 +344,7 @@ void select_profile(int profile)
 		case 0:
 			add_site(profile);
 			break;
-		
+
 		case -2:
 			rename_profile(profile);
 			break;
@@ -369,14 +368,14 @@ int list_sites(int of_user)
 {
 	int sel;
 	printf("\nSelect a site by typing the number to the left of that site:\n");
-	
+
 	char snames[MAX_SITES_PER_PROFILE][MAX_LINE_LENGTH];
 	int scount = extract_site_data(of_user, snames);
 
 	for (int i = 0; i < scount; ++i)
 	{
 		char name[MAX_SITE_NAME_LENGTH], url[MAX_SITE_URL_LENGTH];
-		// url is stored before name in file so i can use spaces as a delimiter 
+		// url is stored before name in file so i can use spaces as a delimiter
 		// while also allowing spaces in the site name
 		strcpy(url, strtok(snames[i], " "));
 		strcpy(name, strtok(NULL, "\n"));
@@ -438,12 +437,12 @@ void add_site(int to_user)
 
 	char pnames[MAX_PROFILES][MAX_LINE_LENGTH];
 	int pcount = extract_profile_data(pnames);
-	#ifdef DEBUG
+#ifdef DEBUG
 	for (int i = 0; i < pcount; ++i)
 	{
 		printf("profile #%d: %s", i, pnames[i]);
 	}
-	#endif
+#endif
 	if (to_user == pcount - 1)
 	{
 		fprintf(data_ptr, "\t%s %s\n", site_url, site_name);
@@ -457,9 +456,9 @@ void add_site(int to_user)
 		// strcat(line, "\n");
 		char line[MAX_LINE_LENGTH] = "";
 		sprintf(line, "\t%s %s\n", site_url, site_name);
-		#ifdef DEBUG
+#ifdef DEBUG
 		printf("printing line before %s\n", pnames[pcount - 1]);
-		#endif
+#endif
 		insert_line_before(line, pnames[pcount - 1]);
 	}
 }
@@ -529,9 +528,9 @@ void change_passphrase(int of_user)
 
 	while (strcmp(new_pass, profile_cpass) != 0)
 	{
-		#ifdef DEBUG
+#ifdef DEBUG
 		printf("\n[DEBUG] Pass: %s, CPass: %s, strcmp Verdict: %d", new_pass, profile_cpass, strcmp(new_pass, profile_cpass));
-		#endif
+#endif
 
 		printf("\nPASSPHRASES DO NOT MATCH\n");
 		printf("Profile passphrase (or \"c\" to cancel) (max %d characters):\n> ", MAX_PASSPHRASE_LENGTH - 1);
@@ -571,7 +570,6 @@ void change_passphrase(int of_user)
 
 void delete_profile(int of_user)
 {
-
 }
 
 void select_site(int of_user, int site)
@@ -584,7 +582,7 @@ void select_site(int of_user, int site)
 		case 0:
 			create_account(of_user, site);
 			break;
-		
+
 		case -2:
 			// TODO implement renaming sites
 			break;
@@ -604,7 +602,7 @@ int list_accounts(int of_user, int for_site)
 {
 	int sel = 0;
 	printf("\nSelect an account entry by typing the number to the left of that entry:\n");
-	
+
 	char snames[MAX_ACCOUNTS_PER_SITE][MAX_LINE_LENGTH];
 	int scount = extract_account_data(of_user, for_site, snames);
 
@@ -675,7 +673,7 @@ void create_account(int for_user, int for_site)
 	case 'y':
 		generate_password(account_pass);
 		break;
-	
+
 	case 'n':
 		printf("\nAccount password (or \"c\" to cancel) (max %d characters):\n> ", MAX_SITE_URL_LENGTH - 1);
 		scanf("%s", account_pass);
@@ -685,21 +683,20 @@ void create_account(int for_user, int for_site)
 			return;
 		}
 		break;
-	
+
 	default:
 	case 'c':
 		return;
-	
 	}
 
 	char pnames[MAX_PROFILES][MAX_LINE_LENGTH];
 	int pcount = extract_profile_data(pnames);
-	#ifdef DEBUG
+#ifdef DEBUG
 	for (int i = 0; i < pcount; ++i)
 	{
 		printf("profile #%d: %s", i, pnames[i]);
 	}
-	#endif
+#endif
 	char line[MAX_LINE_LENGTH] = "";
 	sprintf(line, "\t\t%s %s\n", account_name, account_pass);
 	encrypt(line, strlen(line));
@@ -714,23 +711,42 @@ void create_account(int for_user, int for_site)
 
 	else
 	{
-		#ifdef DEBUG
+#ifdef DEBUG
 		printf("printing line before %s\n", pnames[pcount - 1]);
-		#endif
+#endif
 		insert_line_before(line, snames[scount - 1]);
 	}
 }
 
 void remove_account(int of_user, int for_site, int account)
 {
-
+	
 }
 
 void generate_password(char out[GENERATED_PASSWORD_LENGTH])
 {
-	char pass[GENERATED_PASSWORD_LENGTH] = "placeholder";
+	// char pass[GENERATED_PASSWORD_LENGTH] = "placeholder";
 
-	strcpy(out, pass);
+	const char charset[] = "abcdefghijklmnopqrstuvwxyz"
+						   "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+						   "0123456789"
+						   "!@#$%^&*()_+";
+
+	// srand(time(NULL));
+	// int length = 32;
+	char password[GENERATED_PASSWORD_LENGTH + 1];
+
+	for (int i = 0; i < GENERATED_PASSWORD_LENGTH; i++)
+	{
+		int key = rand() % (sizeof(charset) - 1);
+		password[i] = charset[key];
+	}
+	password[GENERATED_PASSWORD_LENGTH] = '\0';
+
+#ifdef DEBUG
+	printf("Generated Password: %s", password);
+#endif
+	strcpy(out, password);
 }
 
 void select_account(int of_user, int for_site, int account)
@@ -742,7 +758,7 @@ void select_account(int of_user, int for_site, int account)
 		{
 		case 0:
 			break;
-		
+
 		case 1:
 			// TODO implement renaming sites
 			break;
@@ -754,7 +770,7 @@ void select_account(int of_user, int for_site, int account)
 			break;
 		}
 		sel = list_account_settings(of_user, for_site, account);
-	}	
+	}
 }
 
 int list_account_settings(int of_user, int for_site, int account)
@@ -773,7 +789,7 @@ int list_account_settings(int of_user, int for_site, int account)
 void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH])
 {
 	// char new_file[MAX_FILE_LINES][MAX_LINE_LENGTH];
-	FILE* temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
+	FILE *temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
 	int lines_tally = 0;
 	char current_line[MAX_LINE_LENGTH];
 	rewind(data_ptr);
@@ -782,9 +798,9 @@ void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LEN
 	{
 		// strcpy(new_file[lines_tally], current_line);
 		fprintf(temp_data_ptr, "%s", current_line);
-		#ifdef DEBUG
+#ifdef DEBUG
 		printf("copying line %d: \"%s\"\n", lines_tally, current_line);
-		#endif
+#endif
 		++lines_tally;
 	}
 	// insert new line
@@ -817,7 +833,7 @@ void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LEN
 void insert_line_between(char new_line[MAX_LINE_LENGTH], char after[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH])
 {
 	// char new_file[MAX_FILE_LINES][MAX_LINE_LENGTH];
-	FILE* temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
+	FILE *temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
 	int lines_tally = 0;
 	char current_line[MAX_LINE_LENGTH];
 	rewind(data_ptr);
@@ -826,9 +842,9 @@ void insert_line_between(char new_line[MAX_LINE_LENGTH], char after[MAX_LINE_LEN
 	{
 		// strcpy(new_file[lines_tally], current_line);
 		fprintf(temp_data_ptr, "%s", current_line);
-		#ifdef DEBUG
+#ifdef DEBUG
 		printf("copying line %d: \"%s\"\n", lines_tally, current_line);
-		#endif
+#endif
 		++lines_tally;
 	}
 	fprintf(temp_data_ptr, "%s", current_line);
@@ -838,9 +854,9 @@ void insert_line_between(char new_line[MAX_LINE_LENGTH], char after[MAX_LINE_LEN
 	{
 		// strcpy(new_file[lines_tally], current_line);
 		fprintf(temp_data_ptr, "%s", current_line);
-		#ifdef DEBUG
+#ifdef DEBUG
 		printf("copying line %d: \"%s\"\n", lines_tally, current_line);
-		#endif
+#endif
 		++lines_tally;
 	}
 	// insert new line
@@ -873,7 +889,7 @@ void insert_line_between(char new_line[MAX_LINE_LENGTH], char after[MAX_LINE_LEN
 void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH])
 {
 	// char new_file[MAX_FILE_LINES][MAX_LINE_LENGTH];
-	FILE* temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
+	FILE *temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
 	int lines_tally = 0;
 	char current_line[MAX_LINE_LENGTH];
 	rewind(data_ptr);
@@ -882,9 +898,9 @@ void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH])
 	{
 		// strcpy(new_file[lines_tally], current_line);
 		fprintf(temp_data_ptr, "%s", current_line);
-		#ifdef DEBUG
+#ifdef DEBUG
 		printf("copying line %d: \"%s\"\ncurrent_line: \"%s\", which: \"%s\"", lines_tally, current_line, current_line, which);
-		#endif
+#endif
 		++lines_tally;
 	}
 	// insert new line
@@ -916,16 +932,16 @@ void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH])
 // TODO implement encryption/decryption
 void encrypt(char *string, int len)
 {
-	#ifdef DEBUG
+#ifdef DEBUG
 	printf("TODO: ENCRYPTION HAS NOT BEEN IMPLEMENTED YET\n");
-	#endif
+#endif
 }
 
 void decrypt(char *string, int len)
 {
-	#ifdef DEBUG
+#ifdef DEBUG
 	printf("TODO: DECRYPTION HAS NOT BEEN IMPLEMENTED YET\n");
-	#endif
+#endif
 }
 
 // Use this function to hide the user's input while they're typing a password.
@@ -941,24 +957,4 @@ void unhide_echo()
 	term.c_lflag |= ECHO;
 	tcsetattr(fileno(stdin), 0, &term);
 	printf("\n");
-}
-
-void generateRandomPassword(){
-    const char charset[] = "abcdefghijklmnopqrstuvwxyz" 
-                           "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                           "0123456789"
-                           "!@#$%^&*()_+";
-
-srand(time(NULL));
-
-int length = 32;
-char password[length + 1];
-
-for(int i=0; i<length; i++){
-    int key = rand() % (sizeof(charset) - 1);
-    password[i] = charset[key];
-}
-password[length] = '\0';
-
-printf("Generated Password: %s", password);
 }
