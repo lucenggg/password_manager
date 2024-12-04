@@ -42,6 +42,7 @@
 #define MAX_ACCOUNTS_PER_SITE 256
 #define MAX_ACCOUNT_USERNAME_LENGTH 256
 #define MAX_ACCOUNT_PASSWORD_LENGTH 256
+#define GENERATED_PASSWORD_LENGTH 32
 #define MAX_LINE_LENGTH 4096
 #define MAX_FILE_LINES (MAX_PROFILES + (MAX_PROFILES * MAX_SITES_PER_PROFILE) + (MAX_PROFILES * MAX_SITES_PER_PROFILE * MAX_ACCOUNTS_PER_SITE))
 
@@ -71,6 +72,7 @@ void select_account(int of_user, int for_site, int account);
 
 // utility functions
 void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH]);
+void insert_line_between(char new_line[MAX_LINE_LENGTH], char after[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH]);
 void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH]);
 void encrypt(char *string, int len);
 void decrypt(char *string, int len);
@@ -344,7 +346,7 @@ void select_profile(int profile)
 int list_sites(int of_user)
 {
 	int sel;
-	printf("Select a profile by typing the number to the left of that profile:\n");
+	printf("Select a site by typing the number to the left of that site:\n");
 	
 	char snames[MAX_SITES_PER_PROFILE][MAX_LINE_LENGTH];
 	int scount = extract_site_data(of_user, snames);
@@ -579,7 +581,7 @@ void select_site(int of_user, int site)
 int list_accounts(int of_user, int for_site)
 {
 	int sel = 0;
-	printf("Select an account entry by typing the number to the left of that profile:\n");
+	printf("Select an account entry by typing the number to the left of that entry:\n");
 	
 	char snames[MAX_ACCOUNTS_PER_SITE][MAX_LINE_LENGTH];
 	int scount = extract_account_data(of_user, for_site, snames);
@@ -594,7 +596,8 @@ int list_accounts(int of_user, int for_site)
 	}
 
 	printf("    0: [add new account]\n");
-	printf("   -2: [edit site data]\n");
+	printf("   -2: [change site name]\n");
+	printf("   -3: [change site url]\n");
 	printf("   -1: [sign out]\n> ");
 	scanf("%d", &sel);
 	return sel;
@@ -630,7 +633,70 @@ int extract_account_data(int of_user, int for_site, char to[MAX_ACCOUNTS_PER_SIT
 
 void create_account(int for_user, int for_site)
 {
-	
+	char account_name[MAX_ACCOUNT_USERNAME_LENGTH];
+	// printf("[Type \"c\" at any point to cancel.]\n");
+	printf("\nAccount Username (or \"c\" to cancel) (max %d characters):\n> ", MAX_ACCOUNT_USERNAME_LENGTH - 1);
+	scanf("%s", account_name);
+
+	// TODO prevent duplicate account names (per site)
+	if (strcmp(account_name, "c") == 0)
+	{
+		return;
+	}
+
+	char account_pass[MAX_SITE_URL_LENGTH];
+	char choice;
+	printf("\nWould you like to automatically generate a secure password? (y/n):\n> ", MAX_SITE_URL_LENGTH - 1);
+	scanf(" %c ", choice);
+	if (choice == 'y')
+	{
+		generate_password(account_pass);
+	}
+	else
+	{
+		printf("\nAccount password (or \"c\" to cancel) (max %d characters):\n> ", MAX_SITE_URL_LENGTH - 1);
+		scanf("%s", account_pass);
+
+		if (strcmp(account_pass, "c") == 0)
+		{
+			return;
+		}
+	}
+
+	char pnames[MAX_PROFILES][MAX_LINE_LENGTH];
+	int pcount = extract_profile_data(pnames);
+	#ifdef DEBUG
+	for (int i = 0; i < pcount; ++i)
+	{
+		printf("profile #%d: %s", i, pnames[i]);
+	}
+	#endif
+	char line[MAX_LINE_LENGTH] = "";
+	sprintf(line, "\t\t%s %s\n", account_name, account_pass);
+	encrypt(line, strlen(line));
+
+	char snames[MAX_SITES_PER_PROFILE][MAX_LINE_LENGTH];
+	int scount = extract_site_data(for_user, snames);
+
+	if (for_user == pcount - 1 && for_site == scount - 1)
+	{
+		fprintf(data_ptr, line);
+	}
+
+	else
+	{
+		#ifdef DEBUG
+		printf("printing line before %s\n", pnames[pcount - 1]);
+		#endif
+		insert_line_before(line, snames[scount - 1]);
+	}
+}
+
+void generate_password(char out[GENERATED_PASSWORD_LENGTH])
+{
+	char pass[GENERATED_PASSWORD_LENGTH];
+
+	strcpy(out, pass);
 }
 
 void select_account(int of_user, int for_site, int account)
@@ -645,6 +711,62 @@ void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LEN
 	int lines_tally = 0;
 	char current_line[MAX_LINE_LENGTH];
 	rewind(data_ptr);
+	// insert lines until "before" is found
+	while (fgets(current_line, sizeof(current_line), data_ptr) && strcmp(current_line, before))
+	{
+		// strcpy(new_file[lines_tally], current_line);
+		fprintf(temp_data_ptr, "%s", current_line);
+		#ifdef DEBUG
+		printf("copying line %d: \"%s\"\n", lines_tally, current_line);
+		#endif
+		++lines_tally;
+	}
+	// insert new line
+	// strcpy(new_file[lines_tally], new_line);
+	fprintf(temp_data_ptr, "%s", new_line);
+	++lines_tally;
+	// don't forget the line we wanted to insert our new line before
+	// strcpy(new_file[lines_tally], current_line);
+	fprintf(temp_data_ptr, "%s", current_line);
+	// insert the rest of the file
+	while (fgets(current_line, sizeof(current_line), data_ptr))
+	{
+		// strcpy(new_file[lines_tally], current_line);
+		fprintf(temp_data_ptr, "%s", current_line);
+		++lines_tally;
+	}
+	// put string array into file
+	// rewind(data_ptr);
+	// for (int i = 0; i < lines_tally; ++i)
+	// {
+	// 	fprintf(data_ptr, "%s", new_file[i]);
+	// }
+	fclose(temp_data_ptr);
+	fclose(data_ptr);
+	// remove(DATA_PATH);
+	rename(TEMP_DATA_PATH, DATA_PATH);
+	data_ptr = fopen(DATA_PATH, "a+");
+}
+
+void insert_line_between(char new_line[MAX_LINE_LENGTH], char after[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH])
+{
+	// char new_file[MAX_FILE_LINES][MAX_LINE_LENGTH];
+	FILE* temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
+	int lines_tally = 0;
+	char current_line[MAX_LINE_LENGTH];
+	rewind(data_ptr);
+	// insert lines until "after" is found
+	while (fgets(current_line, sizeof(current_line), data_ptr) && strcmp(current_line, after))
+	{
+		// strcpy(new_file[lines_tally], current_line);
+		fprintf(temp_data_ptr, "%s", current_line);
+		#ifdef DEBUG
+		printf("copying line %d: \"%s\"\n", lines_tally, current_line);
+		#endif
+		++lines_tally;
+	}
+	fprintf(temp_data_ptr, "%s", current_line);
+	++lines_tally;
 	// insert lines until "before" is found
 	while (fgets(current_line, sizeof(current_line), data_ptr) && strcmp(current_line, before))
 	{
