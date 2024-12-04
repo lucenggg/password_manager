@@ -316,7 +316,7 @@ void select_profile(int profile)
 		return;
 	}
 
-	while (crypto_pwhash_str_verify(profile_pass, profile_cpass, strlen(profile_cpass)) != 0)
+	while (crypto_pwhash_str_verify(profile_cpass, profile_pass, strlen(profile_pass)) != 0)
 	{
 		// #ifdef DEBUG
 		// printf("\n[DEBUG] Pass: %s, CPass: %s, strcmp Verdict: %d", profile_pass, profile_cpass, strcmp(profile_pass, profile_cpass));
@@ -720,7 +720,7 @@ void create_account(int for_user, int for_site)
 
 void remove_account(int of_user, int for_site, int account)
 {
-	
+
 }
 
 void generate_password(char out[GENERATED_PASSWORD_LENGTH])
