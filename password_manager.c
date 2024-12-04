@@ -600,3 +600,26 @@ void unhide_echo()
 	term.c_lflag |= ECHO;
 	tcsetattr(fileno(stdin), 0, &term);
 }
+
+void generateRandomPassword(){
+    const char charset[] = "abcdefghijklmnopqrstuvwxyz" 
+                           "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                           "0123456789"
+                           "!@#$%^&*()_+";
+
+srand(time(NULL));
+
+int length;
+printf("Enter a number of characters for the password: ");
+scanf("%d", &length);
+
+char password[length + 1];
+
+for(int i=0; i<length; i++){
+    int key = rand() % (sizeof(charset) - 1);
+    password[i] = charset[key];
+}
+password[length] = '\0';
+
+printf("Generated Password: %s", password);
+}
