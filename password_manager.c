@@ -1,6 +1,8 @@
 // a promising-looking encryption library
 // https://github.com/jedisct1/libsodium?tab=readme-ov-file
 
+//-I cygdrive\c\Users\Cdevl\Projects\PasswordManagerGitPull\vcpkg-master\installed\x64-windows\include
+
 
 // header include directives
 #include <stdio.h> // standard input/output library
@@ -65,7 +67,7 @@ int extract_site_data(int of_user, char to[MAX_SITES_PER_PROFILE][MAX_LINE_LENGT
 void add_site(int to_user);
 void rename_profile(int of_user);
 void change_passphrase(int of_user);
-void delete_profile(int of_user);
+void delete_site(int of_user);
 void select_site(int of_user, int site);
 
 // accounts
@@ -79,6 +81,7 @@ int list_account_settings(int of_user, int for_site, int account);
 // utility functions
 void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH]);
 void insert_line_between(char new_line[MAX_LINE_LENGTH], char after[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH]);
+void erase_between(char after[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH]);
 void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH]);
 void generate_password(char out[GENERATED_PASSWORD_LENGTH]);
 void encrypt(char *string, int len);
@@ -354,6 +357,10 @@ void select_profile(int profile)
 			change_passphrase(profile);
 			break;
 
+		case -4:
+			delete_profile(profile);
+			break;
+
 		case -1:
 			return;
 
@@ -386,6 +393,7 @@ int list_sites(int of_user)
 	printf("    0: [add new site]\n");
 	printf("   -2: [rename profile]\n");
 	printf("   -3: [change passphrase]\n");
+	printf("   -4: [Delete profile]\n");
 	printf("   -1: [return]\n> ");
 	scanf("%d", &sel);
 	return sel;
@@ -569,9 +577,14 @@ void change_passphrase(int of_user)
 	replace_line(new_line, old_line);
 }
 
-void delete_profile(int of_user)
+void delete_profile(int profile)
 {
+	
+}
 
+void delete_site(int of_user)
+{
+	
 }
 
 void select_site(int of_user, int site)
@@ -583,6 +596,14 @@ void select_site(int of_user, int site)
 		{
 		case 0:
 			create_account(of_user, site);
+			break;
+
+		case -4:
+			// TODO implement deleting sites
+			break;
+
+		case -3:
+			// TODO implement changing site URL
 			break;
 		
 		case -2:
@@ -620,6 +641,7 @@ int list_accounts(int of_user, int for_site)
 	printf("    0: [add new account]\n");
 	printf("   -2: [change site name]\n");
 	printf("   -3: [change site url]\n");
+	printf("   -4: [delete site]\n");
 	printf("   -1: [return]\n> ");
 	scanf("%d", &sel);
 	return sel;
@@ -913,6 +935,51 @@ void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH])
 	data_ptr = fopen(DATA_PATH, "a+");
 }
 
+void erase_between(char after[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH])
+{
+	FILE* temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
+	int lines_tally = 0;
+	char current_line[MAX_LINE_LENGTH];
+	rewind(data_ptr);
+	
+	// insert lines until "after" is found
+	while (fgets(current_line, sizeof(current_line), data_ptr) && strcmp(current_line, after))
+	{
+		fprintf(temp_data_ptr, "%s", current_line);
+		#ifdef DEBUG
+		printf("copying line %d: \"%s\"\n", lines_tally, current_line);
+		#endif
+		++lines_tally;
+	}
+	fprintf(temp_data_ptr, "%s", current_line);
+	++lines_tally;
+
+	// insert lines until "before" is found
+	while (fgets(current_line, sizeof(current_line), data_ptr) && strcmp(current_line, before))
+	{
+		/*fprintf(temp_data_ptr, "%s", current_line);
+		#ifdef DEBUG
+		printf("copying line %d: \"%s\"\n", lines_tally, current_line);
+		#endif*/
+		++lines_tally;
+	}
+	fprintf(temp_data_ptr, "%s", current_line);
+	++lines_tally;
+
+	//Insert the file
+	while (fgets(current_line, sizeof(current_line), data_ptr))
+	{
+		fprintf(temp_data_ptr, "%s", current_line);
+		++lines_tally;
+	}
+	
+	fclose(temp_data_ptr);
+	fclose(data_ptr);
+	
+	rename(TEMP_DATA_PATH, DATA_PATH);
+	data_ptr = fopen(DATA_PATH, "a+");
+}
+
 // TODO implement encryption/decryption
 void encrypt(char *string, int len)
 {
@@ -948,17 +1015,15 @@ void generateRandomPassword(){
                            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                            "0123456789"
                            "!@#$%^&*()_+";
+	int length = 32;
+	char password[length + 1];
 
-srand(time(NULL));
-
-int length = 32;
-char password[length + 1];
-
-for(int i=0; i<length; i++){
-    int key = rand() % (sizeof(charset) - 1);
-    password[i] = charset[key];
-}
-password[length] = '\0';
+	for(int i=0; i<length; i++)
+	{
+    	int key = rand() % (sizeof(charset) - 1);
+    	password[i] = charset[key];
+	}
+	password[length] = '\0';
 
 printf("Generated Password: %s", password);
 }
