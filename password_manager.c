@@ -609,10 +609,7 @@ void generateRandomPassword(){
 
 srand(time(NULL));
 
-int length;
-printf("Enter a number of characters for the password: ");
-scanf("%d", &length);
-
+int length = 32;
 char password[length + 1];
 
 for(int i=0; i<length; i++){
