@@ -51,8 +51,9 @@
 // function prototypes
 // profiles
 int list_profiles();
-int extract_profile_data(char to[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH]);
+int extract_profile_data(char to[MAX_PROFILES][MAX_LINE_LENGTH]);
 void create_profile();
+void delete_profile(int profile);
 void select_profile(int profile);
 
 // sites
@@ -68,12 +69,15 @@ void select_site(int of_user, int site);
 int list_accounts(int of_user, int for_site);
 int extract_account_data(int of_user, int for_site, char to[MAX_ACCOUNTS_PER_SITE][MAX_LINE_LENGTH]);
 void create_account(int for_user, int for_site);
+void remove_account(int of_user, int for_site, int account);
 void select_account(int of_user, int for_site, int account);
+int list_account_settings(int of_user, int for_site, int account);
 
 // utility functions
 void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH]);
 void insert_line_between(char new_line[MAX_LINE_LENGTH], char after[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH]);
 void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH]);
+void generate_password(char out[GENERATED_PASSWORD_LENGTH]);
 void encrypt(char *string, int len);
 void decrypt(char *string, int len);
 void hide_echo();
@@ -152,9 +156,9 @@ int main(int argc, char** argv)
 int list_profiles() // lists out the various profiles and prompts the user to select one, returning the result.
 {
 	int sel;
-	printf("Select a profile by typing the number to the left of that profile:\n");
+	printf("\nSelect a profile by typing the number to the left of that profile:\n");
 	
-	char pnames[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH];
+	char pnames[MAX_PROFILES][MAX_LINE_LENGTH];
 	int pcount = extract_profile_data(pnames);
 
 	for (int i = 0; i < pcount; ++i)
@@ -170,7 +174,7 @@ int list_profiles() // lists out the various profiles and prompts the user to se
 	return sel;
 }
 
-int extract_profile_data(char to[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH]) 
+int extract_profile_data(char to[MAX_PROFILES][MAX_LINE_LENGTH]) 
 {
 	int profile_tally = 0;
 	char line[MAX_PROFILE_NAME_LENGTH + MAX_PASSPHRASE_LENGTH + 1];
@@ -199,7 +203,7 @@ void create_profile()
 	{
 		return;
 	}
-	char profiles[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH];
+	char profiles[MAX_PROFILES][MAX_LINE_LENGTH];
 	int profiles_count = extract_profile_data(profiles);
 	for (int i = 0; i < profiles_count; ++i)
 	{
@@ -275,7 +279,7 @@ void select_profile(int profile)
 	// password
 	hide_echo();
 
-	char pnames[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH];
+	char pnames[MAX_PROFILES][MAX_LINE_LENGTH];
 	profile_count = extract_profile_data(pnames);
 
 	// get profile name
@@ -346,7 +350,7 @@ void select_profile(int profile)
 int list_sites(int of_user)
 {
 	int sel;
-	printf("Select a site by typing the number to the left of that site:\n");
+	printf("\nSelect a site by typing the number to the left of that site:\n");
 	
 	char snames[MAX_SITES_PER_PROFILE][MAX_LINE_LENGTH];
 	int scount = extract_site_data(of_user, snames);
@@ -414,7 +418,7 @@ void add_site(int to_user)
 		return;
 	}
 
-	char pnames[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH];
+	char pnames[MAX_PROFILES][MAX_LINE_LENGTH];
 	int pcount = extract_profile_data(pnames);
 	#ifdef DEBUG
 	for (int i = 0; i < pcount; ++i)
@@ -454,7 +458,7 @@ void rename_profile(int of_user)
 	}
 
 	// prevent duplicate names
-	char pnames[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH];
+	char pnames[MAX_PROFILES][MAX_LINE_LENGTH];
 	int pcount = extract_profile_data(pnames);
 	for (int i = 0; i < pcount; ++i)
 	{
@@ -533,7 +537,7 @@ void change_passphrase(int of_user)
 
 	unhide_echo();
 
-	char pnames[MAX_PROFILES][MAX_PROFILE_NAME_LENGTH];
+	char pnames[MAX_PROFILES][MAX_LINE_LENGTH];
 	int pcount = extract_profile_data(pnames);
 
 	char old_line[MAX_LINE_LENGTH];
@@ -581,7 +585,7 @@ void select_site(int of_user, int site)
 int list_accounts(int of_user, int for_site)
 {
 	int sel = 0;
-	printf("Select an account entry by typing the number to the left of that entry:\n");
+	printf("\nSelect an account entry by typing the number to the left of that entry:\n");
 	
 	char snames[MAX_ACCOUNTS_PER_SITE][MAX_LINE_LENGTH];
 	int scount = extract_account_data(of_user, for_site, snames);
@@ -598,7 +602,7 @@ int list_accounts(int of_user, int for_site)
 	printf("    0: [add new account]\n");
 	printf("   -2: [change site name]\n");
 	printf("   -3: [change site url]\n");
-	printf("   -1: [sign out]\n> ");
+	printf("   -1: [return]\n> ");
 	scanf("%d", &sel);
 	return sel;
 }
@@ -646,14 +650,15 @@ void create_account(int for_user, int for_site)
 
 	char account_pass[MAX_SITE_URL_LENGTH];
 	char choice;
-	printf("\nWould you like to automatically generate a secure password? (y/n):\n> ", MAX_SITE_URL_LENGTH - 1);
-	scanf(" %c ", choice);
-	if (choice == 'y')
+	printf("\nWould you like to automatically generate a secure password? (y/n/c):\n> ");
+	scanf(" %c", &choice);
+	switch (choice)
 	{
+	case 'y':
 		generate_password(account_pass);
-	}
-	else
-	{
+		break;
+	
+	case 'n':
 		printf("\nAccount password (or \"c\" to cancel) (max %d characters):\n> ", MAX_SITE_URL_LENGTH - 1);
 		scanf("%s", account_pass);
 
@@ -661,6 +666,12 @@ void create_account(int for_user, int for_site)
 		{
 			return;
 		}
+		break;
+	
+	default:
+	case 'c':
+		return;
+	
 	}
 
 	char pnames[MAX_PROFILES][MAX_LINE_LENGTH];
@@ -680,7 +691,7 @@ void create_account(int for_user, int for_site)
 
 	if (for_user == pcount - 1 && for_site == scount - 1)
 	{
-		fprintf(data_ptr, line);
+		fprintf(data_ptr, "%s", line);
 	}
 
 	else
@@ -692,16 +703,53 @@ void create_account(int for_user, int for_site)
 	}
 }
 
+void remove_account(int of_user, int for_site, int account)
+{
+
+}
+
 void generate_password(char out[GENERATED_PASSWORD_LENGTH])
 {
-	char pass[GENERATED_PASSWORD_LENGTH];
+	char pass[GENERATED_PASSWORD_LENGTH] = "placeholder";
 
 	strcpy(out, pass);
 }
 
 void select_account(int of_user, int for_site, int account)
 {
-	
+	int sel = list_account_settings(of_user, for_site, account);
+	while (sel != -1)
+	{
+		switch (sel)
+		{
+		case 0:
+			break;
+		
+		case 1:
+			// TODO implement renaming sites
+			break;
+
+		case -1:
+			return;
+
+		default:
+			break;
+		}
+		sel = list_account_settings(of_user, for_site, account);
+	}	
+}
+
+int list_account_settings(int of_user, int for_site, int account)
+{
+	int sel = 0;
+	printf("Options:\n");
+
+	printf("    0: [change username]\n");
+	printf("    1: [change password]\n");
+	printf("    2: [regenerate password]\n");
+	printf("   -1: [return]\n> ");
+	scanf("%d", &sel);
+	return sel;
 }
 
 void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH])
@@ -851,14 +899,14 @@ void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH])
 void encrypt(char *string, int len)
 {
 	#ifdef DEBUG
-	printf("TODO: ENCRYPTION HAS NOT BEEN IMPLEMENTED YET");
+	printf("TODO: ENCRYPTION HAS NOT BEEN IMPLEMENTED YET\n");
 	#endif
 }
 
 void decrypt(char *string, int len)
 {
 	#ifdef DEBUG
-	printf("TODO: DECRYPTION HAS NOT BEEN IMPLEMENTED YET");
+	printf("TODO: DECRYPTION HAS NOT BEEN IMPLEMENTED YET\n");
 	#endif
 }
 
@@ -874,6 +922,7 @@ void unhide_echo()
 {
 	term.c_lflag |= ECHO;
 	tcsetattr(fileno(stdin), 0, &term);
+	printf("\n");
 }
 
 void generateRandomPassword(){
