@@ -7,6 +7,7 @@
 		"cstdlib": "c",
 		"termios.h": "c",
 		"limits": "c",
-		"typeinfo": "c"
+		"typeinfo": "c",
+		"sodium.h": "c"
 	}
 }
