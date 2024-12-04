@@ -15,6 +15,7 @@
 // filepaths
 #define DATA_PATH "./data"
 #define TEMP_DATA_PATH "./temp"
+#define KEY_PATH "./.zzzzz"
 // #define PROFILE_NAMES_PATH "./data/profiles"
 // #if !(defined(PORTABLE) || defined(DEBUG))
 // 	#ifdef _WIN32 // "_WIN32" is implicitly defined in most Windows compilers
@@ -82,6 +83,9 @@ void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH]);
 void generate_password(char out[GENERATED_PASSWORD_LENGTH]);
 void encrypt(char *string, int len);
 void decrypt(char *string, int len);
+void write_file(int from_temp);
+void encrypt_file();
+int decrypt_file();
 void hide_echo();
 void unhide_echo();
 
@@ -89,6 +93,7 @@ void unhide_echo();
 FILE *data_ptr;
 int profile_count;
 struct termios term;
+unsigned char key[crypto_secretstream_xchacha20poly1305_KEYBYTES];
 // int profiles_offsets[MAX_PROFILES];
 
 // compile the program with the "gcc -o password_manager password_manager.c -D DEBUG" to enable debug mode
@@ -119,6 +124,19 @@ int main(int argc, char **argv)
 		printf("ERROR: libsodium could not be initialized\n");
 		return 1;
 	}
+
+	FILE *key_ptr = fopen(KEY_PATH, "rb");
+	if (key_ptr == NULL)
+	{
+		crypto_secretstream_xchacha20poly1305_keygen(key);
+		key_ptr = fopen(KEY_PATH, "wb");
+		fwrite(key, 1, sizeof(key), key_ptr);
+	}
+	else
+	{
+		fread(key, 1, sizeof(key), key_ptr);
+	}
+	fclose(key_ptr);
 
 	printf("=========================================\n");
 	printf("|                                       |\n");
@@ -186,6 +204,7 @@ int extract_profile_data(char to[MAX_PROFILES][MAX_LINE_LENGTH])
 	int profile_tally = 0;
 	char line[MAX_PROFILE_NAME_LENGTH + MAX_PASSPHRASE_LENGTH + 1];
 	rewind(data_ptr);
+	decrypt_file();
 	while (fgets(line, sizeof(line), data_ptr))
 	{
 		if (line[0] != '\t')
@@ -194,6 +213,7 @@ int extract_profile_data(char to[MAX_PROFILES][MAX_LINE_LENGTH])
 			++profile_tally;
 		}
 	}
+	encrypt_file();
 	return profile_tally;
 }
 
@@ -287,8 +307,7 @@ void create_profile()
 	fprintf(data_ptr, "%s %s\n", profile_name, hashed);
 
 	// hacky and probably inadvisable method of forcing changes to actually write to disq
-	fclose(data_ptr);
-	data_ptr = fopen(DATA_PATH, "a+");
+	write_file(0);
 }
 
 void select_profile(int profile)
@@ -395,6 +414,7 @@ int extract_site_data(int of_user, char to[MAX_SITES_PER_PROFILE][MAX_LINE_LENGT
 	int profile_tally = 0, site_tally = 0;
 	char line[MAX_LINE_LENGTH];
 	rewind(data_ptr);
+	decrypt_file();
 	while (fgets(line, sizeof(line), data_ptr) && profile_tally < of_user)
 	{
 		if (line[0] != '\t')
@@ -410,6 +430,7 @@ int extract_site_data(int of_user, char to[MAX_SITES_PER_PROFILE][MAX_LINE_LENGT
 			++site_tally;
 		}
 	}
+	encrypt_file();
 	return site_tally;
 }
 
@@ -628,6 +649,7 @@ int extract_account_data(int of_user, int for_site, char to[MAX_ACCOUNTS_PER_SIT
 	int profile_tally = 0, site_tally = 0, account_tally = 0;
 	char line[MAX_LINE_LENGTH];
 	rewind(data_ptr);
+	decrypt_file();
 	while (fgets(line, sizeof(line), data_ptr) && profile_tally < of_user)
 	{
 		if (line[0] != '\t')
@@ -644,10 +666,11 @@ int extract_account_data(int of_user, int for_site, char to[MAX_ACCOUNTS_PER_SIT
 	}
 	while (fgets(line, sizeof(line), data_ptr) && line[1] == '\t')
 	{
-		decrypt(line + 2, strlen(line + 2));
+		// decrypt(line + 2, strlen(line + 2));
 		strcpy(to[account_tally], line + 2);
 		++account_tally;
 	}
+	encrypt_file();
 	return account_tally;
 }
 
@@ -697,9 +720,11 @@ void create_account(int for_user, int for_site)
 		printf("profile #%d: %s", i, pnames[i]);
 	}
 #endif
+	char info[MAX_LINE_LENGTH - 3] = "";
+	sprintf(info, "%s %s", account_name, account_pass);
+	// encrypt(info, strlen(info));
 	char line[MAX_LINE_LENGTH] = "";
-	sprintf(line, "\t\t%s %s\n", account_name, account_pass);
-	encrypt(line, strlen(line));
+	sprintf(line, "\t\t%s\n", info);
 
 	char snames[MAX_SITES_PER_PROFILE][MAX_LINE_LENGTH];
 	int scount = extract_site_data(for_user, snames);
@@ -720,7 +745,6 @@ void create_account(int for_user, int for_site)
 
 void remove_account(int of_user, int for_site, int account)
 {
-
 }
 
 void generate_password(char out[GENERATED_PASSWORD_LENGTH])
@@ -792,6 +816,7 @@ void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LEN
 	FILE *temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
 	int lines_tally = 0;
 	char current_line[MAX_LINE_LENGTH];
+	decrypt_file();
 	rewind(data_ptr);
 	// insert lines until "before" is found
 	while (fgets(current_line, sizeof(current_line), data_ptr) && strcmp(current_line, before))
@@ -824,10 +849,7 @@ void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LEN
 	// 	fprintf(data_ptr, "%s", new_file[i]);
 	// }
 	fclose(temp_data_ptr);
-	fclose(data_ptr);
-	// remove(DATA_PATH);
-	rename(TEMP_DATA_PATH, DATA_PATH);
-	data_ptr = fopen(DATA_PATH, "a+");
+	write_file(1);
 }
 
 void insert_line_between(char new_line[MAX_LINE_LENGTH], char after[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH])
@@ -837,6 +859,7 @@ void insert_line_between(char new_line[MAX_LINE_LENGTH], char after[MAX_LINE_LEN
 	int lines_tally = 0;
 	char current_line[MAX_LINE_LENGTH];
 	rewind(data_ptr);
+	decrypt_file();
 	// insert lines until "after" is found
 	while (fgets(current_line, sizeof(current_line), data_ptr) && strcmp(current_line, after))
 	{
@@ -880,10 +903,7 @@ void insert_line_between(char new_line[MAX_LINE_LENGTH], char after[MAX_LINE_LEN
 	// 	fprintf(data_ptr, "%s", new_file[i]);
 	// }
 	fclose(temp_data_ptr);
-	fclose(data_ptr);
-	// remove(DATA_PATH);
-	rename(TEMP_DATA_PATH, DATA_PATH);
-	data_ptr = fopen(DATA_PATH, "a+");
+	write_file(1);
 }
 
 void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH])
@@ -893,6 +913,7 @@ void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH])
 	int lines_tally = 0;
 	char current_line[MAX_LINE_LENGTH];
 	rewind(data_ptr);
+	decrypt_file();
 	// insert lines until "before" is found
 	while (fgets(current_line, sizeof(current_line), data_ptr) && strcmp(current_line, which))
 	{
@@ -923,25 +944,192 @@ void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH])
 	// 	fprintf(data_ptr, "%s", new_file[i]);
 	// }
 	fclose(temp_data_ptr);
-	fclose(data_ptr);
-	// remove(DATA_PATH);
-	rename(TEMP_DATA_PATH, DATA_PATH);
-	data_ptr = fopen(DATA_PATH, "a+");
+	write_file(1);
 }
 
 // TODO implement encryption/decryption
 void encrypt(char *string, int len)
 {
-#ifdef DEBUG
-	printf("TODO: ENCRYPTION HAS NOT BEEN IMPLEMENTED YET\n");
-#endif
+	// #ifdef DEBUG
+	// 	printf("TODO: ENCRYPTION HAS NOT BEEN IMPLEMENTED YET\n");
+	// #endif
+	crypto_secretstream_xchacha20poly1305_state state;
+	unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
+
+	crypto_secretstream_xchacha20poly1305_keygen(key);
+
+	char *out = malloc(len + crypto_secretstream_xchacha20poly1305_ABYTES);
+	crypto_secretstream_xchacha20poly1305_init_push(&state, header, key);
+	crypto_secretstream_xchacha20poly1305_push(&state, out, NULL, string, len, NULL, 0, crypto_secretstream_xchacha20poly1305_TAG_FINAL);
+
+	strcpy(string, "");
+	sprintf(string, "%s %s %s\n", key, header, out);
+	free(out);
 }
 
 void decrypt(char *string, int len)
 {
+	// #ifdef DEBUG
+	// 	printf("TODO: DECRYPTION HAS NOT BEEN IMPLEMENTED YET\n");
+	// #endif
+	crypto_secretstream_xchacha20poly1305_state state;
+	unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
+	unsigned char tag;
+
+	char text[MAX_LINE_LENGTH] = "";
+	sscanf(string, "%s %s %s\n", key, header, text);
 #ifdef DEBUG
-	printf("TODO: DECRYPTION HAS NOT BEEN IMPLEMENTED YET\n");
+	printf("\n%s\n%s\n%s\n", key, header, text);
 #endif
+
+	if (crypto_secretstream_xchacha20poly1305_init_pull(&state, header, key) != 0)
+	{
+		/* Invalid header, no need to go any further */
+		printf("\nERROR: %s is an invalid header\n", header);
+		return;
+	}
+
+	char out[MAX_LINE_LENGTH] = "";
+
+	if (crypto_secretstream_xchacha20poly1305_pull(&state, out, NULL, &tag, text, strlen(text), NULL, 0) != 0)
+	{
+		/* Invalid/incomplete/corrupted ciphertext - abort */
+		printf("\nERROR: %s is invalid ciphertext\n", text);
+		return;
+	}
+
+#ifdef DEBUG
+	printf("\n%s\n", out);
+#endif
+
+	strcpy(string, out);
+}
+
+void write_file(int from_temp)
+{
+	fclose(data_ptr);
+	if (from_temp)
+	{
+		rename(TEMP_DATA_PATH, DATA_PATH);
+	}
+	data_ptr = fopen(DATA_PATH, "a+");
+	encrypt_file();
+}
+
+// overwrite decrypted file with encrypted file
+void encrypt_file()
+{
+	FILE *encrypted = fopen(TEMP_DATA_PATH, "wb");
+
+	crypto_secretstream_xchacha20poly1305_state state;
+	unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
+	int rlen, eof;
+	unsigned long long out_len;
+	unsigned char tag;
+
+	crypto_secretstream_xchacha20poly1305_keygen(key);
+
+	crypto_secretstream_xchacha20poly1305_init_push(&state, header, key);
+
+	char line[MAX_LINE_LENGTH];
+	char encline[MAX_LINE_LENGTH + crypto_secretstream_xchacha20poly1305_ABYTES];
+	rewind(data_ptr);
+
+	fwrite(header, 1, sizeof(header), encrypted);
+	do
+	{
+		rlen = fread(line, 1, sizeof(line), data_ptr);
+		eof = feof(data_ptr);
+		tag = eof ? crypto_secretstream_xchacha20poly1305_TAG_FINAL : 0;
+		crypto_secretstream_xchacha20poly1305_push(&state, encline, &out_len, line, rlen, NULL, 0, tag);
+		fwrite(encline, 1, (size_t)out_len, encrypted);
+	} while (!eof);
+
+	fclose(encrypted);
+	fclose(data_ptr);
+	rename(TEMP_DATA_PATH, DATA_PATH);
+	data_ptr = fopen(DATA_PATH, "a+");
+}
+
+// overwrite encrypted file with decrypted file
+int decrypt_file()
+{
+	FILE *decrypted = fopen(TEMP_DATA_PATH, "wb");
+
+	crypto_secretstream_xchacha20poly1305_state state;
+	unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
+	unsigned char buf_in[MAX_LINE_LENGTH + crypto_secretstream_xchacha20poly1305_ABYTES];
+	unsigned char buf_out[MAX_LINE_LENGTH];
+	unsigned long long out_len;
+	int rlen, eof, ret = -1;
+	unsigned char tag;
+
+	fread(header, 1, sizeof(header), data_ptr);
+	if (crypto_secretstream_xchacha20poly1305_init_pull(&state, header, key) != 0)
+	{
+		goto ret; /* incomplete header */
+	}
+	ret = 0;
+	do
+	{
+		++ret;
+		rlen = fread(buf_in, 1, sizeof buf_in, data_ptr);
+		eof = feof(data_ptr);
+		if (crypto_secretstream_xchacha20poly1305_pull(&state, buf_out, &out_len, &tag,
+													   buf_in, rlen, NULL, 0) != 0)
+		{
+			goto ret; /* corrupted chunk */
+		}
+		if (tag == crypto_secretstream_xchacha20poly1305_TAG_FINAL)
+		{
+			if (!eof)
+			{
+				ret = -2;
+				goto ret; /* end of stream reached before the end of the file */
+			}
+		}
+		else
+		{ /* not the final chunk yet */
+			if (eof)
+			{
+				ret = -3;
+				goto ret; /* end of file reached before the end of the stream */
+			}
+		}
+		fwrite(buf_out, 1, (size_t)out_len, decrypted);
+	} while (!eof);
+
+	ret = 0;
+ret:
+	fclose(decrypted);
+	fclose(data_ptr);
+	rename(TEMP_DATA_PATH, DATA_PATH);
+	data_ptr = fopen(DATA_PATH, "a+");
+#ifdef DEBUG
+	switch (ret)
+	{
+	case 0:
+		printf("decryption successful\n");
+		break;
+
+	case -1:
+		printf("decryption failed: bad header\n");
+		break;
+
+	case -2:
+		printf("decryption failed: reached final chunk early\n");
+		break;
+
+	case -3:
+		printf("decryption failed: reached eof early\n");
+		break;
+
+	default:
+		printf("decryption failed: chunk %d corrupted\n", ret);
+		break;
+	}
+#endif
+	return ret;
 }
 
 // Use this function to hide the user's input while they're typing a password.
