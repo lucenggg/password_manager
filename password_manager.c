@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <termios.h>
 #include <sodium.h>
+#include <time.h>
 
 // constant define directives
 
@@ -65,7 +66,7 @@ int extract_site_data(int of_user, char to[MAX_SITES_PER_PROFILE][MAX_LINE_LENGT
 void add_site(int to_user);
 void rename_profile(int of_user);
 void change_passphrase(int of_user);
-void delete_profile(int of_user);
+void delete_site(int of_user, int site);
 void select_site(int of_user, int site);
 
 // accounts
@@ -125,16 +126,38 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
+		#ifdef DEBUG
+	printf("opening %s...\n", KEY_PATH);
+		#endif
 	FILE *key_ptr = fopen(KEY_PATH, "rb");
+	#ifdef DEBUG
+	printf("key pointer is %p\n", key_ptr);
+	#endif
 	if (key_ptr == NULL)
 	{
-		crypto_secretstream_xchacha20poly1305_keygen(key);
+		#ifdef DEBUG
+		printf("reopening in write mode...\n");
+		#endif
 		key_ptr = fopen(KEY_PATH, "wb");
+		#ifdef DEBUG
+		printf("generating new key...\n");
+		#endif
+		crypto_secretstream_xchacha20poly1305_keygen(key);
+		#ifdef DEBUG
+		printf("key is %s\n", key);
+		printf("writing key to file...\n");
+		#endif
 		fwrite(key, 1, sizeof(key), key_ptr);
 	}
 	else
 	{
+		#ifdef DEBUG
+		printf("fetching key...\n");
+		#endif
 		fread(key, 1, sizeof(key), key_ptr);
+		#ifdef DEBUG
+		printf("key is %s\n", key);
+		#endif
 	}
 	fclose(key_ptr);
 
@@ -201,10 +224,10 @@ int list_profiles() // lists out the various profiles and prompts the user to se
 
 int extract_profile_data(char to[MAX_PROFILES][MAX_LINE_LENGTH])
 {
+	decrypt_file();
 	int profile_tally = 0;
 	char line[MAX_PROFILE_NAME_LENGTH + MAX_PASSPHRASE_LENGTH + 1];
 	rewind(data_ptr);
-	decrypt_file();
 	while (fgets(line, sizeof(line), data_ptr))
 	{
 		if (line[0] != '\t')
@@ -311,6 +334,56 @@ void create_profile()
 	write_file(0);
 }
 
+void delete_profile(int profile)
+{
+	char choice;
+	printf("\nAre you SURE you want to delete this profile? (Once you do, you can't get it back!) (y/n):\n> ");
+	scanf(" %c", &choice);
+	if (choice != 'y')
+	{
+		return;
+	}
+
+	// actually delete the profile
+	decrypt_file();
+	FILE *temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
+	int profile_tally = 0;
+	char line[MAX_PROFILE_NAME_LENGTH + MAX_PASSPHRASE_LENGTH + 1];
+	rewind(data_ptr);
+
+	// before profile to delete
+	while (fgets(line, sizeof(line), data_ptr) && profile_tally != profile)
+	{
+#ifdef DEBUG
+		printf("%s\n", line);
+#endif
+		fprintf(temp_data_ptr, "%s", line);
+		if (line[0] != '\t')
+		{
+			++profile_tally;
+		}
+	}
+
+	// during profile to delete
+	while (fgets(line, sizeof(line), data_ptr) && line[0] == '\t')
+	{
+		// do nothing
+	}
+	//fprintf(temp_data_ptr, "%s", line);
+
+	// after profile to delete
+	while (fgets(line, sizeof(line), data_ptr))
+	{
+#ifdef DEBUG
+		printf("%s\n", line);
+#endif
+		fprintf(temp_data_ptr, "%s", line);
+	}
+
+	fclose(temp_data_ptr);
+	write_file(1);
+}
+
 void select_profile(int profile)
 {
 	// password
@@ -373,6 +446,10 @@ void select_profile(int profile)
 			change_passphrase(profile);
 			break;
 
+		case -4:
+			delete_profile(profile);
+			return;
+
 		case -1:
 			return;
 
@@ -405,17 +482,18 @@ int list_sites(int of_user)
 	printf("    0: [add new site]\n");
 	printf("   -2: [rename profile]\n");
 	printf("   -3: [change passphrase]\n");
-	printf("   -1: [return]\n> ");
+	printf("   -4: [delete profile]\n");
+	printf("   -1: [sign out]\n> ");
 	scanf("%d", &sel);
 	return sel;
 }
 
 int extract_site_data(int of_user, char to[MAX_SITES_PER_PROFILE][MAX_LINE_LENGTH])
 {
+	decrypt_file();
 	int profile_tally = 0, site_tally = 0;
 	char line[MAX_LINE_LENGTH];
 	rewind(data_ptr);
-	decrypt_file();
 	while (fgets(line, sizeof(line), data_ptr) && profile_tally < of_user)
 	{
 		if (line[0] != '\t')
@@ -467,7 +545,10 @@ void add_site(int to_user)
 #endif
 	if (to_user == pcount - 1)
 	{
+		decrypt_file();
+		fseek(data_ptr, 0, SEEK_END);
 		fprintf(data_ptr, "\t%s %s\n", site_url, site_name);
+		encrypt_file();
 	}
 	else
 	{
@@ -590,8 +671,67 @@ void change_passphrase(int of_user)
 	replace_line(new_line, old_line);
 }
 
-void delete_profile(int of_user)
+void delete_site(int of_user, int site)
 {
+	char choice;
+	printf("\nAre you SURE you want to delete this site entry? (Once you do, you can't get it back!) (y/n):\n> ");
+	scanf(" %c", &choice);
+	if (choice != 'y')
+	{
+		return;
+	}
+
+	// actually delete the profile
+	decrypt_file();
+	FILE *temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
+	int profile_tally = 0, site_tally = 0;
+	char line[MAX_LINE_LENGTH] = "";
+	rewind(data_ptr);
+
+	// before profile to delete the site of
+	while (fgets(line, sizeof(line), data_ptr) && profile_tally != of_user)
+	{
+#ifdef DEBUG
+		printf("%s\n", line);
+#endif
+		fprintf(temp_data_ptr, "%s", line);
+		if (line[0] != '\t')
+		{
+			++profile_tally;
+		}
+	}
+
+	// during profile, before site
+	while (fgets(line, sizeof(line), data_ptr) && site_tally != site)
+	{
+#ifdef DEBUG
+		printf("%s\n", line);
+#endif
+		fprintf(temp_data_ptr, "%s", line);
+		if (line[1] != '\t')
+		{
+			++site_tally;
+		}
+	}
+
+	// during site to delete
+	while (fgets(line, sizeof(line), data_ptr) && line[1] == '\t')
+	{
+		// do nothing
+	}
+	fprintf(temp_data_ptr, "%s", line);
+
+	// after site to delete
+	while (fgets(line, sizeof(line), data_ptr))
+	{
+#ifdef DEBUG
+		printf("%s\n", line);
+#endif
+		fprintf(temp_data_ptr, "%s", line);
+	}
+
+	fclose(temp_data_ptr);
+	write_file(1);
 }
 
 void select_site(int of_user, int site)
@@ -608,6 +748,14 @@ void select_site(int of_user, int site)
 		case -2:
 			// TODO implement renaming sites
 			break;
+
+		case -3:
+			// TODO implement renaming sites
+			break;
+
+		case -4:
+			delete_site(of_user, site);
+			return;
 
 		case -1:
 			return;
@@ -640,6 +788,7 @@ int list_accounts(int of_user, int for_site)
 	printf("    0: [add new account]\n");
 	printf("   -2: [change site name]\n");
 	printf("   -3: [change site url]\n");
+	printf("   -4: [delete site]\n");
 	printf("   -1: [return]\n> ");
 	scanf("%d", &sel);
 	return sel;
@@ -647,10 +796,10 @@ int list_accounts(int of_user, int for_site)
 
 int extract_account_data(int of_user, int for_site, char to[MAX_ACCOUNTS_PER_SITE][MAX_LINE_LENGTH])
 {
+	decrypt_file();
 	int profile_tally = 0, site_tally = 0, account_tally = 0;
 	char line[MAX_LINE_LENGTH];
 	rewind(data_ptr);
-	decrypt_file();
 	while (fgets(line, sizeof(line), data_ptr) && profile_tally < of_user)
 	{
 		if (line[0] != '\t')
@@ -732,7 +881,10 @@ void create_account(int for_user, int for_site)
 
 	if (for_user == pcount - 1 && for_site == scount - 1)
 	{
+		decrypt_file();
+		fseek(data_ptr, 0, SEEK_END);
 		fprintf(data_ptr, "%s", line);
+		encrypt_file();
 	}
 
 	else
@@ -746,6 +898,65 @@ void create_account(int for_user, int for_site)
 
 void remove_account(int of_user, int for_site, int account)
 {
+	char choice;
+	printf("\nAre you SURE you want to delete this account entry? (Once you do, you can't get it back!) (y/n):\n> ");
+	scanf(" %c", &choice);
+	if (choice != 'y')
+	{
+		return;
+	}
+
+	// actually delete the profile
+	decrypt_file();
+	FILE *temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
+	int profile_tally = 0, site_tally = 0, account_tally = 0;
+	char line[MAX_PROFILE_NAME_LENGTH + MAX_PASSPHRASE_LENGTH + 1];
+	rewind(data_ptr);
+
+	// before profile to delete the account for
+	while (fgets(line, sizeof(line), data_ptr) && profile_tally != of_user)
+	{
+#ifdef DEBUG
+		printf("%s\n", line);
+#endif
+		fprintf(temp_data_ptr, "%s", line);
+		if (line[0] != '\t')
+		{
+			++profile_tally;
+		}
+	}
+
+	// during profile, before site
+	while (fgets(line, sizeof(line), data_ptr) && site_tally != for_site)
+	{
+#ifdef DEBUG
+		printf("\"%s\"\n", line);
+#endif
+		fprintf(temp_data_ptr, "%s", line);
+		if (line[1] != '\t')
+		{
+			++site_tally;
+		}
+	}
+
+	// during site to delete the account of
+	while (fgets(line, sizeof(line), data_ptr) && account_tally != account)
+	{
+#ifdef DEBUG
+		printf("\"%s\"\n", line);
+#endif
+		fprintf(temp_data_ptr, "%s", line);
+		++account_tally;
+	}
+
+	// after site to delete
+	while (fgets(line, sizeof(line), data_ptr))
+	{
+		fprintf(temp_data_ptr, "%s", line);
+	}
+
+	fclose(temp_data_ptr);
+	write_file(1);
 }
 
 void generate_password(char out[GENERATED_PASSWORD_LENGTH])
@@ -763,7 +974,7 @@ void generate_password(char out[GENERATED_PASSWORD_LENGTH])
 
 	for (int i = 0; i < GENERATED_PASSWORD_LENGTH; i++)
 	{
-		int key = rand() % (sizeof(charset) - 1);
+		int key = (int)randombytes_uniform(sizeof(charset) - 1); // rand() % (sizeof(charset) - 1);
 		password[i] = charset[key];
 	}
 	password[GENERATED_PASSWORD_LENGTH] = '\0';
@@ -788,6 +999,13 @@ void select_account(int of_user, int for_site, int account)
 			// TODO implement renaming sites
 			break;
 
+		case 2:
+			break;
+
+		case 3:
+			remove_account(of_user, for_site, account);
+			return;
+
 		case -1:
 			return;
 
@@ -806,6 +1024,7 @@ int list_account_settings(int of_user, int for_site, int account)
 	printf("    0: [change username]\n");
 	printf("    1: [change password]\n");
 	printf("    2: [regenerate password]\n");
+	printf("    3: [delete account entry]\n");
 	printf("   -1: [return]\n> ");
 	scanf("%d", &sel);
 	return sel;
@@ -1020,22 +1239,28 @@ void write_file(int from_temp)
 // overwrite decrypted file with encrypted file
 void encrypt_file()
 {
-	#ifdef DEBUG
+#ifdef DEBUG
 	struct stat st;
-    if (stat(DATA_PATH, &st) != 0) {
-        return;
-    }
-	fprintf(stdout, "file size: %zd\n", st.st_size);
-	
+	if (stat(DATA_PATH, &st) != 0)
+	{
+		return;
+	}
+	printf("file size: %zd\n", st.st_size);
+
 	if (st.st_size == 0)
 	{
 		return;
 	}
-	#endif
+#endif
 
 	fclose(data_ptr);
 	data_ptr = fopen(DATA_PATH, "rb");
 	FILE *encrypted = fopen(TEMP_DATA_PATH, "wb");
+	#ifdef DEBUG
+	char orig_path[32] = "";
+	sprintf(orig_path, "%s_%d", DATA_PATH, (int) time(NULL));
+	FILE *orig = fopen(orig_path, "w");
+	#endif
 
 	crypto_secretstream_xchacha20poly1305_state state;
 	unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
@@ -1052,17 +1277,34 @@ void encrypt_file()
 	rewind(data_ptr);
 
 	fwrite(header, 1, sizeof(header), encrypted);
+		#ifdef DEBUG
+	printf("wrote header \"");
+	fwrite(header, 1, sizeof(header), stdout);
+	printf("\"...\n");
+		#endif
 	do
 	{
 		rlen = fread(line, 1, sizeof(line), data_ptr);
+		#ifdef DEBUG
+		fputs(line, orig);
+		printf("encrypting line \"%s\"", line);
+		#endif
 		eof = feof(data_ptr);
 		tag = eof ? crypto_secretstream_xchacha20poly1305_TAG_FINAL : 0;
 		crypto_secretstream_xchacha20poly1305_push(&state, encline, &out_len, line, rlen, NULL, 0, tag);
 		fwrite(encline, 1, (size_t)out_len, encrypted);
+		#ifdef DEBUG
+		printf(" as \"");
+		fwrite(encline, 1, out_len, stdout);
+		printf("\"...\n");
+		#endif
 	} while (!eof);
 
 	fclose(encrypted);
 	fclose(data_ptr);
+#ifdef DEBUG
+	fclose(orig);
+#endif
 	rename(TEMP_DATA_PATH, DATA_PATH);
 	data_ptr = fopen(DATA_PATH, "a+");
 }
@@ -1082,11 +1324,12 @@ int decrypt_file()
 	int rlen, eof, ret = -1;
 	unsigned char tag;
 
-	#ifdef DEBUG
+#ifdef DEBUG
 	struct stat st;
-    if (stat(DATA_PATH, &st) != 0) {
-        return -1;
-    }
+	if (stat(DATA_PATH, &st) != 0)
+	{
+		return -1;
+	}
 	fprintf(stdout, "file size: %zd\n", st.st_size);
 
 	if (st.st_size == 0)
@@ -1094,14 +1337,20 @@ int decrypt_file()
 		ret = -4;
 		goto ret;
 	}
-	#endif
+#endif
 
 	fread(header, 1, sizeof(header), data_ptr);
 	if (crypto_secretstream_xchacha20poly1305_init_pull(&state, header, key) != 0)
 	{
 		goto ret; /* incomplete header */
 	}
+		#ifdef DEBUG
+	printf("fetched header \"");
+	fwrite(header, 1, sizeof(header), stdout);
+	printf("\"...\n");
+		#endif
 	ret = 0;
+// main_loop:
 	do
 	{
 		++ret;
@@ -1112,6 +1361,13 @@ int decrypt_file()
 		{
 			goto ret; /* corrupted chunk */
 		}
+		#ifdef DEBUG
+		printf("successfully decrypted \"");
+		fwrite(buf_in, 1, rlen, stdout);
+		printf("\" as \"");
+		fwrite(buf_out, 1, out_len, stdout);
+		printf("\"\n");
+		#endif
 		if (tag == crypto_secretstream_xchacha20poly1305_TAG_FINAL)
 		{
 			if (!eof)
@@ -1162,6 +1418,16 @@ ret:
 
 	default:
 		printf("decryption failed: chunk %d corrupted\n", ret);
+		printf("problem chunk: \"");
+		fwrite(buf_in, 1, rlen, stdout);
+		printf("\"\n");
+		char choice;
+		// printf("skip and continue? (y/n)");
+		// scanf(" %c", &choice);
+		// if (choice == 'y')
+		// {
+		// 	goto main_loop;
+		// }
 		break;
 	}
 #endif
