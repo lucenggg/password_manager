@@ -935,51 +935,6 @@ void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH])
 	data_ptr = fopen(DATA_PATH, "a+");
 }
 
-void erase_between(char after[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH])
-{
-	FILE* temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
-	int lines_tally = 0;
-	char current_line[MAX_LINE_LENGTH];
-	rewind(data_ptr);
-	
-	// insert lines until "after" is found
-	while (fgets(current_line, sizeof(current_line), data_ptr) && strcmp(current_line, after))
-	{
-		fprintf(temp_data_ptr, "%s", current_line);
-		#ifdef DEBUG
-		printf("copying line %d: \"%s\"\n", lines_tally, current_line);
-		#endif
-		++lines_tally;
-	}
-	fprintf(temp_data_ptr, "%s", current_line);
-	++lines_tally;
-
-	// insert lines until "before" is found
-	while (fgets(current_line, sizeof(current_line), data_ptr) && strcmp(current_line, before))
-	{
-		/*fprintf(temp_data_ptr, "%s", current_line);
-		#ifdef DEBUG
-		printf("copying line %d: \"%s\"\n", lines_tally, current_line);
-		#endif*/
-		++lines_tally;
-	}
-	fprintf(temp_data_ptr, "%s", current_line);
-	++lines_tally;
-
-	//Insert the file
-	while (fgets(current_line, sizeof(current_line), data_ptr))
-	{
-		fprintf(temp_data_ptr, "%s", current_line);
-		++lines_tally;
-	}
-	
-	fclose(temp_data_ptr);
-	fclose(data_ptr);
-	
-	rename(TEMP_DATA_PATH, DATA_PATH);
-	data_ptr = fopen(DATA_PATH, "a+");
-}
-
 // TODO implement encryption/decryption
 void encrypt(char *string, int len)
 {
