@@ -292,6 +292,7 @@ void create_profile()
 
 	unhide_echo();
 
+	decrypt_file();
 	fseek(data_ptr, 0, SEEK_END);
 	// char profile_id[MAX_PROFILE_NAME_LENGTH + MAX_PASSPHRASE_LENGTH + 3];
 	char hashed[crypto_pwhash_STRBYTES];
@@ -813,10 +814,10 @@ int list_account_settings(int of_user, int for_site, int account)
 void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH])
 {
 	// char new_file[MAX_FILE_LINES][MAX_LINE_LENGTH];
+	decrypt_file();
 	FILE *temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
 	int lines_tally = 0;
 	char current_line[MAX_LINE_LENGTH];
-	decrypt_file();
 	rewind(data_ptr);
 	// insert lines until "before" is found
 	while (fgets(current_line, sizeof(current_line), data_ptr) && strcmp(current_line, before))
@@ -855,11 +856,11 @@ void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LEN
 void insert_line_between(char new_line[MAX_LINE_LENGTH], char after[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH])
 {
 	// char new_file[MAX_FILE_LINES][MAX_LINE_LENGTH];
+	decrypt_file();
 	FILE *temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
 	int lines_tally = 0;
 	char current_line[MAX_LINE_LENGTH];
 	rewind(data_ptr);
-	decrypt_file();
 	// insert lines until "after" is found
 	while (fgets(current_line, sizeof(current_line), data_ptr) && strcmp(current_line, after))
 	{
@@ -909,11 +910,11 @@ void insert_line_between(char new_line[MAX_LINE_LENGTH], char after[MAX_LINE_LEN
 void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH])
 {
 	// char new_file[MAX_FILE_LINES][MAX_LINE_LENGTH];
+	decrypt_file();
 	FILE *temp_data_ptr = fopen(TEMP_DATA_PATH, "w");
 	int lines_tally = 0;
 	char current_line[MAX_LINE_LENGTH];
 	rewind(data_ptr);
-	decrypt_file();
 	// insert lines until "before" is found
 	while (fgets(current_line, sizeof(current_line), data_ptr) && strcmp(current_line, which))
 	{
@@ -1019,6 +1020,21 @@ void write_file(int from_temp)
 // overwrite decrypted file with encrypted file
 void encrypt_file()
 {
+	#ifdef DEBUG
+	struct stat st;
+    if (stat(DATA_PATH, &st) != 0) {
+        return;
+    }
+	fprintf(stdout, "file size: %zd\n", st.st_size);
+	
+	if (st.st_size == 0)
+	{
+		return;
+	}
+	#endif
+
+	fclose(data_ptr);
+	data_ptr = fopen(DATA_PATH, "rb");
 	FILE *encrypted = fopen(TEMP_DATA_PATH, "wb");
 
 	crypto_secretstream_xchacha20poly1305_state state;
@@ -1054,6 +1070,8 @@ void encrypt_file()
 // overwrite encrypted file with decrypted file
 int decrypt_file()
 {
+	fclose(data_ptr);
+	data_ptr = fopen(DATA_PATH, "rb");
 	FILE *decrypted = fopen(TEMP_DATA_PATH, "wb");
 
 	crypto_secretstream_xchacha20poly1305_state state;
@@ -1063,6 +1081,20 @@ int decrypt_file()
 	unsigned long long out_len;
 	int rlen, eof, ret = -1;
 	unsigned char tag;
+
+	#ifdef DEBUG
+	struct stat st;
+    if (stat(DATA_PATH, &st) != 0) {
+        return -1;
+    }
+	fprintf(stdout, "file size: %zd\n", st.st_size);
+
+	if (st.st_size == 0)
+	{
+		ret = -4;
+		goto ret;
+	}
+	#endif
 
 	fread(header, 1, sizeof(header), data_ptr);
 	if (crypto_secretstream_xchacha20poly1305_init_pull(&state, header, key) != 0)
@@ -1122,6 +1154,10 @@ ret:
 
 	case -3:
 		printf("decryption failed: reached eof early\n");
+		break;
+
+	case -4:
+		printf("decryption failed: nothing to decrypt\n");
 		break;
 
 	default:
