@@ -8,6 +8,8 @@
 		"termios.h": "c",
 		"limits": "c",
 		"typeinfo": "c",
-		"sodium.h": "c"
+		"sodium.h": "c",
+		"*.tcc": "c",
+		"type_traits": "c"
 	}
 }
