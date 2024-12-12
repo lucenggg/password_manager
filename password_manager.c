@@ -47,8 +47,8 @@
 #define MAX_LINE_LENGTH 4096
 #define MAX_FILE_LINES (MAX_PROFILES + (MAX_PROFILES * MAX_SITES_PER_PROFILE) + (MAX_PROFILES * MAX_SITES_PER_PROFILE * MAX_ACCOUNTS_PER_SITE))
 
-#define MAX_PASSPHRASE_OPS 3
-#define MAX_PASSPHRASE_MEM 256
+#define BLOCK_SIZE MAX_LINE_LENGTH
+#define ENCRYPTED_BLOCK_SIZE BLOCK_SIZE + crypto_secretstream_xchacha20poly1305_ABYTES
 
 // struct definitions
 
@@ -126,38 +126,38 @@ int main(int argc, char **argv)
 		return 1;
 	}
 
-		#ifdef DEBUG
+#ifdef DEBUG
 	printf("opening %s...\n", KEY_PATH);
-		#endif
+#endif
 	FILE *key_ptr = fopen(KEY_PATH, "rb");
-	#ifdef DEBUG
+#ifdef DEBUG
 	printf("key pointer is %p\n", key_ptr);
-	#endif
+#endif
 	if (key_ptr == NULL)
 	{
-		#ifdef DEBUG
+#ifdef DEBUG
 		printf("reopening in write mode...\n");
-		#endif
+#endif
 		key_ptr = fopen(KEY_PATH, "wb");
-		#ifdef DEBUG
+#ifdef DEBUG
 		printf("generating new key...\n");
-		#endif
+#endif
 		crypto_secretstream_xchacha20poly1305_keygen(key);
-		#ifdef DEBUG
+#ifdef DEBUG
 		printf("key is %s\n", key);
 		printf("writing key to file...\n");
-		#endif
+#endif
 		fwrite(key, 1, sizeof(key), key_ptr);
 	}
 	else
 	{
-		#ifdef DEBUG
+#ifdef DEBUG
 		printf("fetching key...\n");
-		#endif
+#endif
 		fread(key, 1, sizeof(key), key_ptr);
-		#ifdef DEBUG
+#ifdef DEBUG
 		printf("key is %s\n", key);
-		#endif
+#endif
 	}
 	fclose(key_ptr);
 
@@ -369,7 +369,7 @@ void delete_profile(int profile)
 	{
 		// do nothing
 	}
-	//fprintf(temp_data_ptr, "%s", line);
+	// fprintf(temp_data_ptr, "%s", line);
 
 	// after profile to delete
 	while (fgets(line, sizeof(line), data_ptr))
@@ -1256,11 +1256,11 @@ void encrypt_file()
 	fclose(data_ptr);
 	data_ptr = fopen(DATA_PATH, "rb");
 	FILE *encrypted = fopen(TEMP_DATA_PATH, "wb");
-	#ifdef DEBUG
+#ifdef DEBUG
 	char orig_path[32] = "";
-	sprintf(orig_path, "%s_%d", DATA_PATH, (int) time(NULL));
+	sprintf(orig_path, "%s_decrypted_%d", DATA_PATH, (int)time(NULL));
 	FILE *orig = fopen(orig_path, "w");
-	#endif
+#endif
 
 	crypto_secretstream_xchacha20poly1305_state state;
 	unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
@@ -1272,32 +1272,33 @@ void encrypt_file()
 
 	crypto_secretstream_xchacha20poly1305_init_push(&state, header, key);
 
-	char line[MAX_LINE_LENGTH];
-	char encline[MAX_LINE_LENGTH + crypto_secretstream_xchacha20poly1305_ABYTES];
+	char line[BLOCK_SIZE];
+	char encline[ENCRYPTED_BLOCK_SIZE];
 	rewind(data_ptr);
 
 	fwrite(header, 1, sizeof(header), encrypted);
-		#ifdef DEBUG
+#ifdef DEBUG
 	printf("wrote header \"");
 	fwrite(header, 1, sizeof(header), stdout);
 	printf("\"...\n");
-		#endif
+#endif
 	do
 	{
 		rlen = fread(line, 1, sizeof(line), data_ptr);
-		#ifdef DEBUG
-		fputs(line, orig);
+#ifdef DEBUG
+		fwrite(line, 1, sizeof(line), orig);
 		printf("encrypting line \"%s\"", line);
-		#endif
+#endif
 		eof = feof(data_ptr);
 		tag = eof ? crypto_secretstream_xchacha20poly1305_TAG_FINAL : 0;
 		crypto_secretstream_xchacha20poly1305_push(&state, encline, &out_len, line, rlen, NULL, 0, tag);
+#ifdef DEBUG
+		printf(" (length: %d)", (int)rlen);
+		printf(" as \"\n");
 		fwrite(encline, 1, (size_t)out_len, encrypted);
-		#ifdef DEBUG
-		printf(" as \"");
-		fwrite(encline, 1, out_len, stdout);
-		printf("\"...\n");
-		#endif
+		// fwrite(encline, 1, out_len, stdout);
+		printf("\n\" (length: %d)...\n", (int)rlen);
+#endif
 	} while (!eof);
 
 	fclose(encrypted);
@@ -1318,8 +1319,8 @@ int decrypt_file()
 
 	crypto_secretstream_xchacha20poly1305_state state;
 	unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
-	unsigned char buf_in[MAX_LINE_LENGTH + crypto_secretstream_xchacha20poly1305_ABYTES];
-	unsigned char buf_out[MAX_LINE_LENGTH];
+	unsigned char buf_in[ENCRYPTED_BLOCK_SIZE];
+	unsigned char buf_out[BLOCK_SIZE];
 	unsigned long long out_len;
 	int rlen, eof, ret = -1;
 	unsigned char tag;
@@ -1344,30 +1345,38 @@ int decrypt_file()
 	{
 		goto ret; /* incomplete header */
 	}
-		#ifdef DEBUG
+#ifdef DEBUG
 	printf("fetched header \"");
 	fwrite(header, 1, sizeof(header), stdout);
 	printf("\"...\n");
-		#endif
+#endif
 	ret = 0;
-// main_loop:
+	// main_loop:
 	do
 	{
 		++ret;
 		rlen = fread(buf_in, 1, sizeof buf_in, data_ptr);
 		eof = feof(data_ptr);
-		if (crypto_secretstream_xchacha20poly1305_pull(&state, buf_out, &out_len, &tag,
-													   buf_in, rlen, NULL, 0) != 0)
+		int err = crypto_secretstream_xchacha20poly1305_pull(&state, buf_out, &out_len, &tag, buf_in, rlen, NULL, 0); 
+#ifdef DEBUG
+		printf("tried to decrypt \"\n");
+		fwrite(buf_in, 1, rlen, stdout);
+		printf("\n\" (length: %d)", (int)rlen);
+		printf(" as \"\n");
+		fwrite(buf_out, 1, out_len, stdout);
+		printf("\n\"\n");
+#endif
+		if (err != 0)
 		{
 			goto ret; /* corrupted chunk */
 		}
-		#ifdef DEBUG
-		printf("successfully decrypted \"");
+#ifdef DEBUG
+		printf("successfully decrypted \"\n");
 		fwrite(buf_in, 1, rlen, stdout);
-		printf("\" as \"");
+		printf("\" as \"\n");
 		fwrite(buf_out, 1, out_len, stdout);
-		printf("\"\n");
-		#endif
+		printf("\n\"\n");
+#endif
 		if (tag == crypto_secretstream_xchacha20poly1305_TAG_FINAL)
 		{
 			if (!eof)
@@ -1391,6 +1400,12 @@ int decrypt_file()
 ret:
 	fclose(decrypted);
 	fclose(data_ptr);
+#ifdef DEBUG
+	if (ret != 0)
+	{
+		rename(DATA_PATH, "./data_failed");
+	}
+#endif
 	rename(TEMP_DATA_PATH, DATA_PATH);
 	data_ptr = fopen(DATA_PATH, "a+");
 #ifdef DEBUG
