@@ -82,8 +82,6 @@ void insert_line_before(char new_line[MAX_LINE_LENGTH], char before[MAX_LINE_LEN
 void insert_line_between(char new_line[MAX_LINE_LENGTH], char after[MAX_LINE_LENGTH], char before[MAX_LINE_LENGTH]);
 void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH]);
 void generate_password(char out[GENERATED_PASSWORD_LENGTH]);
-void encrypt(char *string, int len);
-void decrypt(char *string, int len);
 void write_file(int from_temp);
 void encrypt_file();
 int decrypt_file();
@@ -1165,64 +1163,6 @@ void replace_line(char with[MAX_LINE_LENGTH], char which[MAX_LINE_LENGTH])
 	// }
 	fclose(temp_data_ptr);
 	write_file(1);
-}
-
-// TODO implement encryption/decryption
-void encrypt(char *string, int len)
-{
-	// #ifdef DEBUG
-	// 	printf("TODO: ENCRYPTION HAS NOT BEEN IMPLEMENTED YET\n");
-	// #endif
-	crypto_secretstream_xchacha20poly1305_state state;
-	unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
-
-	crypto_secretstream_xchacha20poly1305_keygen(key);
-
-	char *out = malloc(len + crypto_secretstream_xchacha20poly1305_ABYTES);
-	crypto_secretstream_xchacha20poly1305_init_push(&state, header, key);
-	crypto_secretstream_xchacha20poly1305_push(&state, out, NULL, string, len, NULL, 0, crypto_secretstream_xchacha20poly1305_TAG_FINAL);
-
-	strcpy(string, "");
-	sprintf(string, "%s %s %s\n", key, header, out);
-	free(out);
-}
-
-void decrypt(char *string, int len)
-{
-	// #ifdef DEBUG
-	// 	printf("TODO: DECRYPTION HAS NOT BEEN IMPLEMENTED YET\n");
-	// #endif
-	crypto_secretstream_xchacha20poly1305_state state;
-	unsigned char header[crypto_secretstream_xchacha20poly1305_HEADERBYTES];
-	unsigned char tag;
-
-	char text[MAX_LINE_LENGTH] = "";
-	sscanf(string, "%s %s %s\n", key, header, text);
-#ifdef DEBUG
-	printf("\n%s\n%s\n%s\n", key, header, text);
-#endif
-
-	if (crypto_secretstream_xchacha20poly1305_init_pull(&state, header, key) != 0)
-	{
-		/* Invalid header, no need to go any further */
-		printf("\nERROR: %s is an invalid header\n", header);
-		return;
-	}
-
-	char out[MAX_LINE_LENGTH] = "";
-
-	if (crypto_secretstream_xchacha20poly1305_pull(&state, out, NULL, &tag, text, strlen(text), NULL, 0) != 0)
-	{
-		/* Invalid/incomplete/corrupted ciphertext - abort */
-		printf("\nERROR: %s is invalid ciphertext\n", text);
-		return;
-	}
-
-#ifdef DEBUG
-	printf("\n%s\n", out);
-#endif
-
-	strcpy(string, out);
 }
 
 void write_file(int from_temp)
